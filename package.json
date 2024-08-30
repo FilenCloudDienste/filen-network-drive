@@ -1,0 +1,51 @@
+{
+	"name": "@filen/virtual-drive",
+	"version": "0.1.1",
+	"description": "Filen Virtual Drive",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"private": false,
+	"scripts": {
+		"test": "jest --forceExit ./__tests__",
+		"lint": "eslint src/**/* --ext .js,.jsx,.ts,.tsx",
+		"emitTypes": "tsc --emitDeclarationOnly",
+		"tsc": "tsc --build",
+		"clear": "rimraf ./dist",
+		"build": "npm run clear && npm run lint && npm run tsc",
+		"dev": "tsx ./dev/index.ts",
+		"yalc": "npm run build && yalc push",
+		"install:filen": "npm install @filen/sdk@latest @filen/webdav@latest"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/FilenCloudDienste/filen-virtual-drive.git"
+	},
+	"keywords": [
+		"filen"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"author": "Filen",
+	"license": "AGPLv3",
+	"bugs": {
+		"url": "https://github.com/FilenCloudDienste/filen-virtual-drive/issues"
+	},
+	"homepage": "https://filen.io",
+	"devDependencies": {
+		"@jest/globals": "^29.7.0",
+		"@types/fs-extra": "^11.0.4",
+		"@typescript-eslint/eslint-plugin": "^6.20.0",
+		"@typescript-eslint/parser": "^6.20.0",
+		"eslint": "^8.56.0",
+		"jest": "^29.7.0",
+		"rimraf": "^6.0.1",
+		"tsx": "^4.19.0",
+		"typescript": "^5.5.4"
+	},
+	"dependencies": {
+		"@filen/sdk": "^0.1.163",
+		"@filen/webdav": "^0.2.37",
+		"fs-extra": "^11.2.0"
+	}
+}
