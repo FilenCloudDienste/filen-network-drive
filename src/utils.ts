@@ -56,7 +56,7 @@ export async function platformConfigPath(): Promise<string> {
 	return configPath
 }
 
-export async function downloadBinaryAndVerifySHA256(url: string, destination: string, neededHash: string): Promise<void> {
+export async function downloadBinaryAndVerifySHA512(url: string, destination: string, neededHash: string): Promise<void> {
 	const tmpPath = pathModule.join(pathModule.dirname(destination), `${uuidv4()}.tmp`)
 
 	await fs.ensureDir(pathModule.dirname(tmpPath))
@@ -76,7 +76,7 @@ export async function downloadBinaryAndVerifySHA256(url: string, destination: st
 	})
 
 	const hash = await new Promise<string>((resolve, reject) => {
-		const hash = crypto.createHash("sha256")
+		const hash = crypto.createHash("sha512")
 		const stream = fs.createReadStream(tmpPath)
 
 		stream.on("data", data => hash.update(data))

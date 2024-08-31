@@ -30,13 +30,13 @@ async function downloadFile(url) {
 }
 
 /**
- * Computes the SHA-256 hash of a file.
+ * Computes the SHA-512 hash of a file.
  * @param {string} filePath - The path to the file.
- * @returns {Promise<string>} - A promise that resolves to the SHA-256 hash of the file.
+ * @returns {Promise<string>} - A promise that resolves to the SHA-512 hash of the file.
  */
-function computeSHA256(filePath) {
+function computeSHA512(filePath) {
 	return new Promise((resolve, reject) => {
-		const hash = crypto.createHash("sha256")
+		const hash = crypto.createHash("sha512")
 		const stream = fs.createReadStream(filePath)
 
 		stream.on("data", data => hash.update(data))
@@ -46,7 +46,7 @@ function computeSHA256(filePath) {
 }
 
 /**
- * Downloads multiple files from URLs, computes their SHA-256 hashes, and removes the temporary files.
+ * Downloads multiple files from URLs, computes their SHA-512 hashes, and removes the temporary files.
  * Outputs the result as a record: Record<URL, hash>.
  * @param {string[]} urls - An array of URLs to download files from.
  * @returns {Promise<Record<string, string>>} - A promise that resolves to a record of URL to hash.
@@ -59,9 +59,9 @@ async function downloadAndHashMultiple(urls) {
 			console.log(`Downloading file from: ${url}`)
 			const tmpFilePath = await downloadFile(url)
 
-			console.log(`Computing SHA-256 hash for: ${tmpFilePath}`)
-			const hash = await computeSHA256(tmpFilePath)
-			console.log(`SHA-256 hash for ${url}: ${hash}`)
+			console.log(`Computing SHA-512 hash for: ${tmpFilePath}`)
+			const hash = await computeSHA512(tmpFilePath)
+			console.log(`SHA-512 hash for ${url}: ${hash}`)
 
 			// Add the hash to the result record
 			result[url] = hash

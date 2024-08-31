@@ -4,7 +4,7 @@ import WebDAVServer from "@filen/webdav"
 import { spawn, type ChildProcess } from "child_process"
 import {
 	platformConfigPath,
-	downloadBinaryAndVerifySHA256,
+	downloadBinaryAndVerifySHA512,
 	checkIfMountExists,
 	isProcessRunning,
 	execCommandSudo,
@@ -32,14 +32,22 @@ export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch
 }`
 export const RCLONE_URL = `https://cdn.filen.io/@filen/desktop/bin/rclone/${rcloneBinaryName}`
 export const RCLONE_HASHES: Record<string, string> = {
-	filen_rclone_darwin_arm64_1670: "259030c7c785b65d4a8d17529ded1b335e0cd5932c76cabdec38675f19745385",
-	filen_rclone_darwin_x64_1670: "17fdc70237cbc52af7c69516ef5a594b68867b274308e1dc569d82fe5120ca51",
-	filen_rclone_linux_arm64_1670: "f41d3d3b5f623c8a21cb67f1fbb4ec7e477bc7a5cb2b56529917a72bc5090171",
-	filen_rclone_linux_ia32_1670: "f2cc417cf17f872e6cba1caf8ebf4a0490e3977da09ff81f0d76896114fd0ffd",
-	filen_rclone_linux_x64_1670: "315f9b2fa2c1e1bdf9f89ec3e59293a84ae2d339d91625587e26cd09dac8a447",
-	"filen_rclone_win32_arm64_1670.exe": "346933fb277ba6b1efa0ef6e406d0abfe2db5a6209dad8be4f083b40a14d6ae1",
-	"filen_rclone_win32_ia32_1670.exe": "91eb96d6dca1af6a2db2b08159c9354ee85e4226bd217412eb2ed3d03af53329",
-	"filen_rclone_win32_x64_1670.exe": "c189595c36996bdb7dce6ec28cf6906a00cbb5c5fe182e038bf476d74bed349e"
+	filen_rclone_darwin_arm64_1670:
+		"19e2c49e08eb2a5333f4683b5b9f92c49d1f7a88c3a61bfbd1c7d52486e07f92b10e0162761775d247d9be30ecd7e2896d9b25bb03bbc4c3e1ebe217a48aa5ae",
+	filen_rclone_darwin_x64_1670:
+		"2175f6eb7bdc22df74dfd850b49efe683b8a2f3d4550c0d3e1d71bfc2c1462dae872f3957e053eb623097f73945d59e8efcfff550902d002be7010679f401ff2",
+	filen_rclone_linux_arm64_1670:
+		"6b5935894d82c3b6468976de539e3996e096cb67c30a13714301e4d5d55f0f02e7a9ef4a3b4c13f2deae0086b2f39af615820cafbe218dd438d49f8e071893e7",
+	filen_rclone_linux_ia32_1670:
+		"431e0113206957886d839f87e6d7654abfd6c32ea0289e4ffd3d293a9f054301429501e908af097bd27da635422625432fa94360e82b6fe7d5ce9d619242f3ac",
+	filen_rclone_linux_x64_1670:
+		"027c850ac1bbb7b6f13c059544de8aacd985067d7595d87a202dbf583d47b88a65778506c4373288235335161d997dcafea04ccf8a34c3c398536ab174427a24",
+	"filen_rclone_win32_arm64_1670.exe":
+		"0e97010c819e51d90e918009ef45ae6daa7e666620ede85221c2e5e0f5b0a5a7050ba0ac986001e936627ef95249c0c7847b3b931e2d053b3ced39440ef3f713",
+	"filen_rclone_win32_ia32_1670.exe":
+		"f3a667d0bb000aaa044e70f84ea8afb8da5027ad0c996ef2110d1cd9c15f589874c281c1bd3a4e90c1384688d98abb9179c5218b6d3a301d22e50e85341f3770",
+	"filen_rclone_win32_x64_1670.exe":
+		"de73b2f22b30ea216e1eb62c05ac5da85796c7d0ee556cc7b04c077a5a80f2ae8a86416ac051c2126dc5ff7cc85482841973ee887002341e82c2587429f95166"
 }
 
 /**
@@ -70,6 +78,28 @@ export class VirtualDrive {
 	private readonly logFilePath: string | undefined
 	private readonly readOnly: boolean
 
+	/**
+	 * Creates an instance of VirtualDrive.
+	 *
+	 * @constructor
+	 * @public
+	 * @param {{
+	 * 		sdk?: FilenSDK
+	 * 		sdkConfig: FilenSDKConfig
+	 * 		cachePath?: string
+	 * 		mountPoint: string
+	 * 		cacheSize?: number
+	 * 		logFilePath?: string
+	 * 		readOnly?: boolean
+	 * 	}} param0
+	 * @param {FilenSDK} param0.sdk
+	 * @param {FilenSDKConfig} param0.sdkConfig
+	 * @param {string} param0.cachePath
+	 * @param {string} param0.mountPoint "X:" uppercase drive letter following : on windows, /path/to/mount of linux/macos
+	 * @param {number} param0.cacheSize in Gibibytes
+	 * @param {string} param0.logFilePath
+	 * @param {boolean} param0.readOnly set the mount to readOnly mode
+	 */
 	public constructor({
 		sdk,
 		sdkConfig,
@@ -200,7 +230,7 @@ export class VirtualDrive {
 						throw new Error(`Hash for binary name ${rcloneBinaryName} not found in hardcoded record.`)
 					}
 
-					await downloadBinaryAndVerifySHA256(RCLONE_URL, binaryPath, RCLONE_HASHES[rcloneBinaryName]!)
+					await downloadBinaryAndVerifySHA512(RCLONE_URL, binaryPath, RCLONE_HASHES[rcloneBinaryName]!)
 				}
 
 				this.rcloneBinaryPath = binaryPath
@@ -273,12 +303,13 @@ export class VirtualDrive {
 	 *
 	 * @private
 	 * @async
-	 * @param {string} endpoint
-	 * @param {string} user
-	 * @param {string} password
+	 * @param {{ endpoint: string; user: string; password: string }} param0
+	 * @param {string} param0.endpoint
+	 * @param {string} param0.user
+	 * @param {string} param0.password
 	 * @returns {Promise<void>}
 	 */
-	private async writeRCloneConfig(endpoint: string, user: string, password: string): Promise<void> {
+	private async writeRCloneConfig({ endpoint, user, password }: { endpoint: string; user: string; password: string }): Promise<void> {
 		const [obscuredPassword, configPath] = await Promise.all([this.obscureRClonePassword(password), this.getRCloneConfigPath()])
 		const content = `[Filen]\ntype = webdav\nurl = ${endpoint}\nvendor = other\nuser = ${user}\npass = ${obscuredPassword}`
 
@@ -614,7 +645,13 @@ export class VirtualDrive {
 			})
 
 			await this.webdavServer.start()
-			await this.writeRCloneConfig(this.webdavEndpoint, this.webdavUsername, this.webdavPassword)
+
+			await this.writeRCloneConfig({
+				user: this.webdavUsername,
+				password: this.webdavPassword,
+				endpoint: this.webdavEndpoint
+			})
+
 			await this.spawnRClone()
 
 			if (!(await this.isMountActuallyActive())) {
