@@ -49,12 +49,9 @@ const virtualDrive = new VirtualDrive({
 	mountPoint: "X:" // or /path/to/mount on Linux/macOS
 })
 
-virtualDrive
-	.start()
-	.then(() => {
-		console.log("Virtual drive started")
-	})
-	.catch(console.error)
+await virtualDrive.start()
+
+console.log("Virtual drive started")
 ```
 
 ## License
