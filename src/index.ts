@@ -110,7 +110,7 @@ export class VirtualDrive {
 		readOnly
 	}: {
 		sdk?: FilenSDK
-		sdkConfig: FilenSDKConfig
+		sdkConfig?: FilenSDKConfig
 		cachePath?: string
 		mountPoint: string
 		cacheSize?: number
