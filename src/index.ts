@@ -659,4 +659,5 @@ export class VirtualDrive {
 	}
 }
 
+export * from "./utils"
 export default VirtualDrive
