@@ -7,7 +7,6 @@ import {
 	downloadBinaryAndVerifySHA512,
 	checkIfMountExists,
 	isProcessRunning,
-	execCommandSudo,
 	killProcessByPid,
 	killProcessByName,
 	isFUSEInstalledOnLinux,
@@ -61,6 +60,7 @@ export class VirtualDrive {
 	private readonly sdk: FilenSDK
 	private webdavServer: WebDAVServer | null = null
 	private rcloneProcess: ChildProcess | null = null
+	private monitorProcess: ChildProcess | null = null
 	private webdavUsername: string = "admin"
 	private webdavPassword: string = "admin"
 	private webdavPort: number = 1905
@@ -392,7 +392,7 @@ export class VirtualDrive {
 			"--vfs-read-ahead 1024Mi",
 			"--vfs-read-chunk-size-limit 0",
 			"--no-checksum",
-			"--transfers 16",
+			//"--transfers 16",
 			"--vfs-fast-fingerprint",
 			...(this.logFilePath ? [`--log-file "${this.logFilePath}"`] : []),
 			"--devname Filen",
@@ -427,7 +427,7 @@ export class VirtualDrive {
 			throw new Error(`Virtual drive config not found at ${configPath}.`)
 		}
 
-		await fs.ensureDir(cachePath)
+		await fs.emptyDir(cachePath)
 
 		if (this.logFilePath) {
 			if (await fs.exists(this.logFilePath)) {
@@ -444,68 +444,126 @@ export class VirtualDrive {
 			configPath
 		})
 
-		return new Promise<void>((resolve, reject) => {
-			let checkInterval: NodeJS.Timeout | undefined = undefined
-			let checkTimeout: NodeJS.Timeout | undefined = undefined
-			let rcloneSpawned = false
+		await Promise.all([
+			new Promise<void>((resolve, reject) => {
+				let checkInterval: NodeJS.Timeout | undefined = undefined
+				let checkTimeout: NodeJS.Timeout | undefined = undefined
+				let rcloneSpawned = false
 
-			checkInterval = setInterval(async () => {
-				try {
-					if ((await this.isMountActuallyActive()) && rcloneSpawned) {
+				checkInterval = setInterval(async () => {
+					try {
+						if ((await this.isMountActuallyActive()) && rcloneSpawned) {
+							clearInterval(checkInterval)
+							clearTimeout(checkTimeout)
+
+							resolve()
+						}
+					} catch {
+						// Noop
+					}
+				}, 1000)
+
+				checkTimeout = setTimeout(async () => {
+					try {
+						if (!(await this.isMountActuallyActive())) {
+							clearInterval(checkInterval)
+							clearTimeout(checkTimeout)
+
+							reject(new Error("Could not start virtual drive."))
+						}
+					} catch (e) {
 						clearInterval(checkInterval)
 						clearTimeout(checkTimeout)
 
-						resolve()
+						reject(e)
 					}
-				} catch {
-					// Noop
-				}
-			}, 1000)
+				}, 30000)
 
-			checkTimeout = setTimeout(async () => {
-				try {
-					if (!(await this.isMountActuallyActive())) {
-						clearInterval(checkInterval)
-						clearTimeout(checkTimeout)
+				this.rcloneProcess = spawn(normalizePathForCmd(binaryPath), args, {
+					stdio: "ignore",
+					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
+					detached: false
+				})
 
-						reject(new Error("Could not start virtual drive."))
-					}
-				} catch (e) {
+				this.rcloneProcess.unref()
+
+				this.rcloneProcess.on("spawn", () => {
+					rcloneSpawned = true
+				})
+
+				this.rcloneProcess.on("error", err => {
+					rcloneSpawned = false
+
 					clearInterval(checkInterval)
 					clearTimeout(checkTimeout)
 
-					reject(e)
+					reject(err)
+				})
+
+				this.rcloneProcess.on("exit", () => {
+					rcloneSpawned = false
+
+					clearInterval(checkInterval)
+					clearTimeout(checkTimeout)
+
+					reject(new Error("Could not start virtual drive."))
+				})
+			}),
+			new Promise<void>((resolve, reject) => {
+				if (this.monitorProcess) {
+					resolve()
+
+					return
 				}
-			}, 30000)
 
-			this.rcloneProcess = spawn(normalizePathForCmd(binaryPath), args, {
-				stdio: "ignore",
-				shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
-				detached: false
+				let errored = false
+
+				this.monitorProcess = spawn(
+					process.platform === "win32" ? "cmd.exe" : "sh",
+					process.platform === "win32"
+						? ["/c", pathModule.join(__dirname, "..", "scripts", "monitor.bat"), process.pid.toString(), rcloneBinaryName]
+						: [
+								pathModule.join(__dirname, "..", "scripts", "monitor.sh"),
+								process.pid.toString(),
+								rcloneBinaryName,
+								`"${this.mountPoint}"`
+						  ],
+					{
+						detached: false,
+						shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
+						stdio: "ignore"
+					}
+				)
+
+				this.monitorProcess.unref()
+
+				this.monitorProcess.on("error", err => {
+					errored = true
+
+					reject(err)
+				})
+
+				this.monitorProcess.on("exit", () => {
+					errored = true
+
+					reject(new Error("Could not spawn monitor process."))
+				})
+
+				this.monitorProcess.on("spawn", () => {
+					setTimeout(() => {
+						if (errored) {
+							this.monitorProcess = null
+
+							reject(new Error("Could not spawn monitor process."))
+
+							return
+						}
+
+						resolve()
+					}, 1000)
+				})
 			})
-
-			this.rcloneProcess.on("spawn", () => {
-				rcloneSpawned = true
-			})
-
-			this.rcloneProcess.on("error", err => {
-				rcloneSpawned = false
-
-				clearInterval(checkInterval)
-				clearTimeout(checkTimeout)
-
-				reject(err)
-			})
-
-			this.rcloneProcess.on("exit", () => {
-				rcloneSpawned = false
-
-				clearInterval(checkInterval)
-				clearTimeout(checkTimeout)
-
-				reject(new Error("Could not start virtual drive."))
-			})
-		})
+		])
 	}
 
 	/**
@@ -546,7 +604,10 @@ export class VirtualDrive {
 				}
 			}
 
-			this.rcloneProcess.kill("SIGKILL")
+			await new Promise<void>(resolve => {
+				this.rcloneProcess?.on("exit", () => resolve())
+				this.rcloneProcess?.kill("SIGKILL")
+			})
 
 			if (this.rcloneProcess.pid) {
 				await killProcessByPid(this.rcloneProcess.pid).catch(() => {})
@@ -559,20 +620,12 @@ export class VirtualDrive {
 			const umountCmd =
 				process.platform === "darwin"
 					? `umount -f ${normalizePathForCmd(this.mountPoint)}`
-					: `umount -f -l ${normalizePathForCmd(this.mountPoint)}`
+					: `fusermount -uzq ${normalizePathForCmd(this.mountPoint)}`
 			const listCmd = `mount -t ${process.platform === "linux" ? "fuse.rclone" : "nfs"}`
-			let listedMounts = await execCommand(listCmd)
+			const listedMounts = await execCommand(listCmd)
 
 			if (listedMounts.length > 0 && listedMounts.includes(normalizePathForCmd(this.mountPoint))) {
 				await execCommand(umountCmd).catch(() => {})
-			}
-
-			await new Promise<void>(resolve => setTimeout(resolve, 500))
-
-			listedMounts = await execCommand(listCmd)
-
-			if (listedMounts.length > 0 && listedMounts.includes(normalizePathForCmd(this.mountPoint))) {
-				await execCommandSudo(umountCmd).catch(() => {})
 			}
 		}
 	}
@@ -675,17 +728,13 @@ export class VirtualDrive {
 		await this.stopMutex.acquire()
 
 		try {
-			if (!this.active) {
-				return
-			}
+			await this.cleanupRClone()
 
 			const webdavOnline = await this.isWebDAVOnline()
 
 			if (webdavOnline && this.webdavServer?.serverInstance) {
 				await this.webdavServer?.stop()
 			}
-
-			await this.cleanupRClone()
 
 			this.webdavServer = null
 			this.rcloneProcess = null
