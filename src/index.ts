@@ -231,6 +231,10 @@ export class VirtualDrive {
 					}
 
 					await downloadBinaryAndVerifySHA512(RCLONE_URL, binaryPath, RCLONE_HASHES[rcloneBinaryName]!)
+
+					if (process.platform !== "win32") {
+						await execCommand(`chmod +x ${normalizePathForCmd(binaryPath)}`)
+					}
 				}
 
 				this.rcloneBinaryPath = binaryPath
