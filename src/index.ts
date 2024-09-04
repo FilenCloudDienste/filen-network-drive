@@ -25,7 +25,7 @@ import fs from "fs-extra"
 import findFreePorts from "find-free-ports"
 import writeFileAtomic from "write-file-atomic"
 import axios from "axios"
-import { type RCCoreStats, type RCVFSStats } from "./types"
+import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
 
 export const RCLONE_VERSION = "1670"
 export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
@@ -269,19 +269,9 @@ export class VirtualDrive {
 	 *
 	 * @public
 	 * @async
-	 * @returns {Promise<{
-	 * 		uploadsInProgress: number
-	 * 		uploadsQueued: number
-	 * 		erroredFiles: number
-	 * 		transfers: { name: string; size: number; speed: number }[]
-	 * 	}>}
+	 * @returns {Promise<GetStats>}
 	 */
-	public async getStats(): Promise<{
-		uploadsInProgress: number
-		uploadsQueued: number
-		erroredFiles: number
-		transfers: { name: string; size: number; speed: number }[]
-	}> {
+	public async getStats(): Promise<GetStats> {
 		if (!this.active) {
 			return {
 				uploadsInProgress: 0,

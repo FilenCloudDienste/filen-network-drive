@@ -90,3 +90,14 @@ export type RCCoreStatsTransferring = {
 	speedAvg: number
 	srcFs: string
 }
+
+export type GetStats = {
+	uploadsInProgress: number
+	uploadsQueued: number
+	erroredFiles: number
+	transfers: {
+		name: string
+		size: number
+		speed: number
+	}[]
+}
