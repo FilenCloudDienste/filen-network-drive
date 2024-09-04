@@ -17,5 +17,5 @@
 		"noUncheckedIndexedAccess": true
 	},
 	"include": ["src"],
-	"exclude": ["node_modules", "dist", "__tests__", "docs", ".github", "dev", ".vscode", "*.bat", "*.sh"]
+	"exclude": ["node_modules", "dist", "__tests__", "docs", ".github", "dev", ".vscode"]
 }

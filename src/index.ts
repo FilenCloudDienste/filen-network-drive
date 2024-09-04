@@ -26,6 +26,7 @@ import findFreePorts from "find-free-ports"
 import writeFileAtomic from "write-file-atomic"
 import axios from "axios"
 import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
+import { writeMonitorScriptAndReturnPath } from "./monitor"
 
 export const RCLONE_VERSION = "1670"
 export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
@@ -80,6 +81,7 @@ export class VirtualDrive {
 	private readonly logFilePath: string | undefined
 	private readonly readOnly: boolean
 	private rclonePort: number = 1906
+	private monitorScriptPath: string | null = null
 
 	/**
 	 * Creates an instance of VirtualDrive.
@@ -180,6 +182,21 @@ export class VirtualDrive {
 		}
 
 		return this.configPath
+	}
+
+	/**
+	 * Get the monitor script path.
+	 *
+	 * @private
+	 * @async
+	 * @returns {Promise<string>}
+	 */
+	private async getMonitorScriptPath(): Promise<string> {
+		if (!this.monitorScriptPath) {
+			this.monitorScriptPath = await writeMonitorScriptAndReturnPath()
+		}
+
+		return this.monitorScriptPath
 	}
 
 	/**
@@ -326,9 +343,9 @@ export class VirtualDrive {
 					!coreData.transferring || !Array.isArray(coreData.transferring)
 						? []
 						: coreData.transferring.map(transfer => ({
-								name: transfer.name,
-								size: transfer.size,
-								speed: transfer.speed
+								name: typeof transfer.name === "string" ? transfer.name : "",
+								size: typeof transfer.size === "number" ? transfer.size : 0,
+								speed: typeof transfer.speed === "number" ? transfer.speed : 0
 						  }))
 			}
 		} catch {
@@ -503,10 +520,11 @@ export class VirtualDrive {
 	 * @returns {Promise<void>}
 	 */
 	private async spawnRClone(): Promise<void> {
-		const [binaryPath, configPath, cachePath] = await Promise.all([
+		const [binaryPath, configPath, cachePath, monitorScriptPath] = await Promise.all([
 			this.getRCloneBinaryPath(),
 			this.getRCloneConfigPath(),
-			this.getCachePath()
+			this.getCachePath(),
+			this.getMonitorScriptPath()
 		])
 
 		if (!(await fs.exists(binaryPath))) {
@@ -547,13 +565,8 @@ export class VirtualDrive {
 			this.monitorProcess = spawn(
 				process.platform === "win32" ? "cmd.exe" : "sh",
 				process.platform === "win32"
-					? ["/c", pathModule.join(__dirname, "..", "scripts", "monitor.bat"), process.pid.toString(), rcloneBinaryName]
-					: [
-							pathModule.join(__dirname, "..", "scripts", "monitor.sh"),
-							process.pid.toString(),
-							rcloneBinaryName,
-							`"${this.mountPoint}"`
-					  ],
+					? ["/c", normalizePathForCmd(monitorScriptPath), process.pid.toString(), rcloneBinaryName]
+					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), rcloneBinaryName, `"${this.mountPoint}"`],
 				{
 					detached: false,
 					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
