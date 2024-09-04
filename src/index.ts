@@ -491,7 +491,7 @@ export class VirtualDrive {
 			"--no-checksum",
 			//"--transfers 10",
 			"--vfs-fast-fingerprint",
-			"--allow-other",
+			//"--allow-other",
 			"--rc",
 			`--rc-addr 127.0.0.1:${this.rclonePort}`,
 			...(this.logFilePath ? [`--log-file "${this.logFilePath}"`] : []),
