@@ -24,6 +24,8 @@ import pathModule from "path"
 import fs from "fs-extra"
 import findFreePorts from "find-free-ports"
 import writeFileAtomic from "write-file-atomic"
+import axios from "axios"
+import { type RCCoreStats, type RCVFSStats } from "./types"
 
 export const RCLONE_VERSION = "1670"
 export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
@@ -77,6 +79,7 @@ export class VirtualDrive {
 	private readonly cacheSize: number
 	private readonly logFilePath: string | undefined
 	private readonly readOnly: boolean
+	private rclonePort: number = 1906
 
 	/**
 	 * Creates an instance of VirtualDrive.
@@ -262,6 +265,93 @@ export class VirtualDrive {
 	}
 
 	/**
+	 * Get RClone stats.
+	 *
+	 * @public
+	 * @async
+	 * @returns {Promise<{
+	 * 		uploadsInProgress: number
+	 * 		uploadsQueued: number
+	 * 		erroredFiles: number
+	 * 		transfers: { name: string; size: number; speed: number }[]
+	 * 	}>}
+	 */
+	public async getStats(): Promise<{
+		uploadsInProgress: number
+		uploadsQueued: number
+		erroredFiles: number
+		transfers: { name: string; size: number; speed: number }[]
+	}> {
+		if (!this.active) {
+			return {
+				uploadsInProgress: 0,
+				uploadsQueued: 0,
+				erroredFiles: 0,
+				transfers: []
+			}
+		}
+
+		try {
+			const [coreResponse, vfsResponse] = await Promise.all([
+				axios.post(
+					`http://127.0.0.1:${this.rclonePort}/core/stats`,
+					{},
+					{
+						responseType: "json",
+						timeout: 5000
+					}
+				),
+				axios.post(
+					`http://127.0.0.1:${this.rclonePort}/vfs/stats`,
+					{},
+					{
+						responseType: "json",
+						timeout: 5000
+					}
+				)
+			])
+
+			const coreData = coreResponse.data as RCCoreStats
+			const vfsData = vfsResponse.data as RCVFSStats
+
+			if (
+				!vfsData.diskCache ||
+				typeof vfsData.diskCache.erroredFiles !== "number" ||
+				typeof vfsData.diskCache.uploadsInProgress !== "number" ||
+				typeof vfsData.diskCache.uploadsQueued !== "number"
+			) {
+				return {
+					uploadsInProgress: 0,
+					uploadsQueued: 0,
+					erroredFiles: 0,
+					transfers: !coreData.transferring || !Array.isArray(coreData.transferring) ? [] : coreData.transferring
+				}
+			}
+
+			return {
+				uploadsInProgress: vfsData.diskCache.uploadsInProgress,
+				uploadsQueued: vfsData.diskCache.uploadsQueued,
+				erroredFiles: vfsData.diskCache.erroredFiles,
+				transfers:
+					!coreData.transferring || !Array.isArray(coreData.transferring)
+						? []
+						: coreData.transferring.map(transfer => ({
+								name: transfer.name,
+								size: transfer.size,
+								speed: transfer.speed
+						  }))
+			}
+		} catch {
+			return {
+				uploadsInProgress: 0,
+				uploadsQueued: 0,
+				erroredFiles: 0,
+				transfers: []
+			}
+		}
+	}
+
+	/**
 	 * Check if the mount and the underyling WebDAV server is actually online and accessible.
 	 *
 	 * @private
@@ -325,7 +415,10 @@ export class VirtualDrive {
 	 *
 	 * @private
 	 * @async
-	 * @param {{ cachePath: string; configPath: string }} param0
+	 * @param {{
+	 * 		cachePath: string
+	 * 		configPath: string
+	 * 	}} param0
 	 * @param {string} param0.cachePath
 	 * @param {string} param0.configPath
 	 * @returns {Promise<string[]>}
@@ -384,8 +477,8 @@ export class VirtualDrive {
 			"--noappledouble",
 			"--noapplexattr",
 			"--no-gzip-encoding",
-			"--low-level-retries 10",
-			"--retries 10",
+			//"--low-level-retries 10",
+			//"--retries 10",
 			"--use-mmap",
 			"--disable-http2",
 			"--file-perms 0666",
@@ -396,8 +489,11 @@ export class VirtualDrive {
 			"--vfs-read-ahead 1024Mi",
 			"--vfs-read-chunk-size-limit 0",
 			"--no-checksum",
-			//"--transfers 16",
+			//"--transfers 10",
 			"--vfs-fast-fingerprint",
+			"--allow-other",
+			"--rc",
+			`--rc-addr 127.0.0.1:${this.rclonePort}`,
 			...(this.logFilePath ? [`--log-file "${this.logFilePath}"`] : []),
 			"--devname Filen",
 			...(process.platform === "win32" ? ["--volname \\\\Filen\\Filen"] : ["--volname Filen"]),
@@ -443,131 +539,152 @@ export class VirtualDrive {
 			}
 		}
 
+		// The monitor process is a pretty dirty workaround to a specific problem.
+		// When spawning a child process in an Electron environment the child process does not get killed when the parent process (Electron) exits (nobody knows why).
+		// This means the spawned rclone process keeps chugging along while the actual desktop client is already closed -> bad.
+		// This is why we start a secondary "monitor" process. This monitor process continuously checks if the parent PID (electron) is still alive.
+		// If not, it tries to kill the rclone process, unmount the mountpoints and then exits itself.
+		// This makes sure we clean up all of our processes, even if the parent electron process dies and cannot properly clean up on its own.
+		await new Promise<void>((resolve, reject) => {
+			if (this.monitorProcess) {
+				resolve()
+
+				return
+			}
+
+			let errored = false
+
+			this.monitorProcess = spawn(
+				process.platform === "win32" ? "cmd.exe" : "sh",
+				process.platform === "win32"
+					? ["/c", pathModule.join(__dirname, "..", "scripts", "monitor.bat"), process.pid.toString(), rcloneBinaryName]
+					: [
+							pathModule.join(__dirname, "..", "scripts", "monitor.sh"),
+							process.pid.toString(),
+							rcloneBinaryName,
+							`"${this.mountPoint}"`
+					  ],
+				{
+					detached: false,
+					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
+					stdio: "ignore"
+				}
+			)
+
+			this.monitorProcess.unref()
+
+			this.monitorProcess.on("error", err => {
+				errored = true
+
+				this.monitorProcess = null
+
+				reject(err)
+			})
+
+			this.monitorProcess.on("exit", () => {
+				errored = true
+
+				this.monitorProcess = null
+
+				reject(new Error("Could not spawn monitor process."))
+			})
+
+			this.monitorProcess.on("spawn", () => {
+				setTimeout(() => {
+					if (errored) {
+						reject(new Error("Could not spawn monitor process."))
+
+						return
+					}
+
+					resolve()
+				}, 1000)
+			})
+		})
+
+		const [rcPort] = await findFreePorts(1)
+
+		if (!rcPort) {
+			throw new Error("Could not find a free port for RC.")
+		}
+
+		this.rclonePort = rcPort
+
 		const args = await this.rcloneArgs({
 			cachePath,
 			configPath
 		})
 
-		await Promise.all([
-			new Promise<void>((resolve, reject) => {
-				let checkInterval: NodeJS.Timeout | undefined = undefined
-				let checkTimeout: NodeJS.Timeout | undefined = undefined
-				let rcloneSpawned = false
+		await new Promise<void>((resolve, reject) => {
+			let checkInterval: NodeJS.Timeout | undefined = undefined
+			let checkTimeout: NodeJS.Timeout | undefined = undefined
+			let rcloneSpawned = false
 
-				checkInterval = setInterval(async () => {
-					try {
-						if ((await this.isMountActuallyActive()) && rcloneSpawned) {
-							clearInterval(checkInterval)
-							clearTimeout(checkTimeout)
-
-							resolve()
-						}
-					} catch {
-						// Noop
-					}
-				}, 1000)
-
-				checkTimeout = setTimeout(async () => {
-					try {
-						if (!(await this.isMountActuallyActive())) {
-							clearInterval(checkInterval)
-							clearTimeout(checkTimeout)
-
-							reject(new Error("Could not start virtual drive."))
-						}
-					} catch (e) {
+			checkInterval = setInterval(async () => {
+				try {
+					if ((await this.isMountActuallyActive()) && rcloneSpawned) {
 						clearInterval(checkInterval)
 						clearTimeout(checkTimeout)
 
-						reject(e)
+						resolve()
 					}
-				}, 30000)
-
-				this.rcloneProcess = spawn(normalizePathForCmd(binaryPath), args, {
-					stdio: "ignore",
-					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
-					detached: false
-				})
-
-				this.rcloneProcess.unref()
-
-				this.rcloneProcess.on("spawn", () => {
-					rcloneSpawned = true
-				})
-
-				this.rcloneProcess.on("error", err => {
-					rcloneSpawned = false
-
-					clearInterval(checkInterval)
-					clearTimeout(checkTimeout)
-
-					reject(err)
-				})
-
-				this.rcloneProcess.on("exit", () => {
-					rcloneSpawned = false
-
-					clearInterval(checkInterval)
-					clearTimeout(checkTimeout)
-
-					reject(new Error("Could not start virtual drive."))
-				})
-			}),
-			new Promise<void>((resolve, reject) => {
-				if (this.monitorProcess) {
-					resolve()
-
-					return
+				} catch {
+					// Noop
 				}
+			}, 1000)
 
-				let errored = false
+			checkTimeout = setTimeout(async () => {
+				clearInterval(checkInterval)
+				clearTimeout(checkTimeout)
 
-				this.monitorProcess = spawn(
-					process.platform === "win32" ? "cmd.exe" : "sh",
-					process.platform === "win32"
-						? ["/c", pathModule.join(__dirname, "..", "scripts", "monitor.bat"), process.pid.toString(), rcloneBinaryName]
-						: [
-								pathModule.join(__dirname, "..", "scripts", "monitor.sh"),
-								process.pid.toString(),
-								rcloneBinaryName,
-								`"${this.mountPoint}"`
-						  ],
-					{
-						detached: false,
-						shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
-						stdio: "ignore"
-					}
-				)
-
-				this.monitorProcess.unref()
-
-				this.monitorProcess.on("error", err => {
-					errored = true
-
-					reject(err)
-				})
-
-				this.monitorProcess.on("exit", () => {
-					errored = true
-
-					reject(new Error("Could not spawn monitor process."))
-				})
-
-				this.monitorProcess.on("spawn", () => {
-					setTimeout(() => {
-						if (errored) {
-							this.monitorProcess = null
-
-							reject(new Error("Could not spawn monitor process."))
-
-							return
-						}
+				try {
+					if ((await this.isMountActuallyActive()) && rcloneSpawned) {
+						clearInterval(checkInterval)
+						clearTimeout(checkTimeout)
 
 						resolve()
-					}, 1000)
-				})
+
+						return
+					}
+
+					await this.stop()
+
+					reject(new Error("Could not start virtual drive."))
+				} catch (e) {
+					reject(e)
+				}
+			}, 15000)
+
+			this.rcloneProcess = spawn(normalizePathForCmd(binaryPath), args, {
+				stdio: "ignore",
+				shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
+				detached: false
 			})
-		])
+
+			this.rcloneProcess.on("spawn", () => {
+				rcloneSpawned = true
+			})
+
+			this.rcloneProcess.on("error", err => {
+				rcloneSpawned = false
+
+				clearInterval(checkInterval)
+				clearTimeout(checkTimeout)
+
+				reject(err)
+			})
+
+			this.rcloneProcess.on("exit", () => {
+				rcloneSpawned = false
+
+				this.rcloneProcess = null
+
+				clearInterval(checkInterval)
+				clearTimeout(checkTimeout)
+
+				reject(new Error("Could not start virtual drive."))
+			})
+		})
 	}
 
 	/**
@@ -608,10 +725,7 @@ export class VirtualDrive {
 				}
 			}
 
-			await new Promise<void>(resolve => {
-				this.rcloneProcess?.on("exit", () => resolve())
-				this.rcloneProcess?.kill("SIGKILL")
-			})
+			this.rcloneProcess?.kill("SIGKILL")
 
 			if (this.rcloneProcess.pid) {
 				await killProcessByPid(this.rcloneProcess.pid).catch(() => {})
@@ -628,7 +742,7 @@ export class VirtualDrive {
 			const listCmd = `mount -t ${process.platform === "linux" ? "fuse.rclone" : "nfs"}`
 			const listedMounts = await execCommand(listCmd)
 
-			if (listedMounts.length > 0 && listedMounts.includes(normalizePathForCmd(this.mountPoint))) {
+			if (listedMounts.length > 0 && listedMounts.includes(this.mountPoint)) {
 				await execCommand(umountCmd).catch(() => {})
 			}
 		}
@@ -679,13 +793,13 @@ export class VirtualDrive {
 				}
 			}
 
-			const [port] = await findFreePorts(1)
+			const [webdavPort] = await findFreePorts(1)
 
-			if (!port) {
+			if (!webdavPort) {
 				throw new Error("Could not find a free port.")
 			}
 
-			this.webdavPort = port
+			this.webdavPort = webdavPort
 			this.webdavUsername = generateRandomString(32)
 			this.webdavPassword = generateRandomString(32)
 			this.webdavEndpoint = `http://127.0.0.1:${this.webdavPort}`
@@ -737,7 +851,7 @@ export class VirtualDrive {
 			const webdavOnline = await this.isWebDAVOnline()
 
 			if (webdavOnline && this.webdavServer?.serverInstance) {
-				await this.webdavServer?.stop()
+				await this.webdavServer?.stop(true)
 			}
 
 			this.webdavServer = null
