@@ -25,24 +25,13 @@ if "%~2"=="" (
 set "TARGET_PID=%~1"
 set "PROCESS_NAME_TO_KILL=%~2"
 
-:loop
-:: Check if the process with the target PID is running using PowerShell
-powershell -Command "Get-Process -Id %TARGET_PID% -ErrorAction SilentlyContinue" >nul 2>&1
+:: Use PowerShell to wait for the process to exit
+powershell -Command "Try { Wait-Process -Id %TARGET_PID% -ErrorAction Stop } Catch { Exit }"
 
-:: If the process is not found, kill the process by name
-if errorlevel 1 (
-    taskkill /F /IM "%PROCESS_NAME_TO_KILL%" >nul 2>&1
-    goto :end
-)
-
-:: Wait
-timeout /t 5 /nobreak >nul
-
-:: Repeat the check
-goto :loop
+:: Once the process with TARGET_PID exits, kill the process by name
+taskkill /F /IM "%PROCESS_NAME_TO_KILL%" >nul 2>&1
 
 :end
-
 exit /B
 
 `
@@ -62,6 +51,12 @@ if [ -z "$2" ]; then
   exit 1
 fi
 
+if [ -z "$3" ]; then
+  echo "Error: No mount point provided."
+  
+  exit 1
+fi
+
 # Set the target PID and process name from command-line arguments
 TARGET_PID="$1"
 PROCESS_NAME_TO_KILL="$2"
@@ -76,24 +71,20 @@ else
   MOUNT_TYPE="fuse.rclone"
 fi
 
-while true; do
-  # Check if the process with the target PID is running
-  if ! ps -p "$TARGET_PID" > /dev/null 2>&1; then
-    kill -9 "$PROCESS_NAME_TO_KILL" > /dev/null 2>&1 || true
+# Wait for the process with the target PID to exit
+if ps -p "$TARGET_PID" > /dev/null 2>&1; then
+  wait "$TARGET_PID"
+fi
 
-    # List current mounts
-    LISTED_MOUNTS=$(mount -t "$MOUNT_TYPE")
+# After the process exits, kill the specified process by name (if still running)
+pkill -9 "$PROCESS_NAME_TO_KILL" > /dev/null 2>&1 || true
 
-    if echo "$LISTED_MOUNTS" | grep -q "$MOUNT_POINT"; then
-      $UMOUNT_CMD "$MOUNT_POINT" > /dev/null 2>&1 || true
-    fi
+# List current mounts
+LISTED_MOUNTS=$(mount -t "$MOUNT_TYPE")
 
-    break
-  fi
-
-  # Wait
-  sleep 5
-done
+if echo "$LISTED_MOUNTS" | grep -q "$MOUNT_POINT"; then
+  $UMOUNT_CMD "$MOUNT_POINT" > /dev/null 2>&1 || true
+fi
 
 exit 0
 
