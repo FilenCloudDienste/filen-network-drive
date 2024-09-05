@@ -3,7 +3,7 @@ import writeFileAtomic from "write-file-atomic"
 import { platformConfigPath } from "./utils"
 import fs from "fs-extra"
 
-export const MONITOR_VERSION = 1
+export const MONITOR_VERSION = 2
 
 export const windowsMonitor = `@echo off
 setlocal
@@ -26,19 +26,17 @@ set "TARGET_PID=%~1"
 set "PROCESS_NAME_TO_KILL=%~2"
 
 :loop
-:: Check if the parentProcess with the target PID is running
-tasklist /FI "PID eq %TARGET_PID%" | find /I "%TARGET_PID%" >nul 2>&1
+:: Check if the process with the target PID is running using PowerShell
+powershell -Command "Get-Process -Id %TARGET_PID% -ErrorAction SilentlyContinue" >nul 2>&1
 
-:: If the parentProcess is not found, kill the process by name
+:: If the process is not found, kill the process by name
 if errorlevel 1 (
-    :: If the process exists or not does not matter, simply kill it or continue
     taskkill /F /IM "%PROCESS_NAME_TO_KILL%" >nul 2>&1
-
     goto :end
 )
 
-:: Wait for 3 seconds
-timeout /t 3 /nobreak >nul
+:: Wait
+timeout /t 5 /nobreak >nul
 
 :: Repeat the check
 goto :loop
@@ -93,8 +91,8 @@ while true; do
     break
   fi
 
-  # Wait for 3 seconds
-  sleep 3
+  # Wait
+  sleep 5
 done
 
 exit 0

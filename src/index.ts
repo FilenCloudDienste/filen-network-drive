@@ -815,7 +815,12 @@ export class VirtualDrive {
 					password: this.webdavPassword,
 					sdk: this.sdk
 				},
-				authMode: "basic"
+				authMode: "basic",
+				rateLimit: {
+					windowMs: 1000,
+					limit: 10000,
+					key: "ip"
+				}
 			})
 
 			await this.webdavServer.start()
