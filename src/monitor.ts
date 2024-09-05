@@ -1,6 +1,6 @@
 import pathModule from "path"
 import writeFileAtomic from "write-file-atomic"
-import { platformConfigPath } from "./utils"
+import { platformConfigPath, execCommand } from "./utils"
 import fs from "fs-extra"
 
 export const MONITOR_VERSION = 3
@@ -90,6 +90,10 @@ export async function writeMonitorScriptAndReturnPath(): Promise<string> {
 
 	if (!(await fs.exists(monitorPath))) {
 		await writeFileAtomic(monitorPath, process.platform === "win32" ? windowsMonitor : unixMonitor, "utf-8")
+	}
+
+	if (process.platform !== "win32") {
+		await execCommand(`chmod +x "${monitorPath}"`)
 	}
 
 	return monitorPath
