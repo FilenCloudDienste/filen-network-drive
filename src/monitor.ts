@@ -3,7 +3,7 @@ import writeFileAtomic from "write-file-atomic"
 import { platformConfigPath } from "./utils"
 import fs from "fs-extra"
 
-export const MONITOR_VERSION = 2
+export const MONITOR_VERSION = 3
 
 export const windowsMonitor = `@echo off
 setlocal
@@ -65,26 +65,20 @@ MOUNT_POINT="$3"
 # Determine platform-specific umount command
 if [ "$(uname)" = "Darwin" ]; then
   UMOUNT_CMD="umount -f"
-  MOUNT_TYPE="nfs"
 else
   UMOUNT_CMD="fusermount -uzq"  # Use fusermount for Linux
-  MOUNT_TYPE="fuse.rclone"
 fi
 
-# Wait for the process with the target PID to exit
-if ps -p "$TARGET_PID" > /dev/null 2>&1; then
-  wait "$TARGET_PID"
-fi
+# Loop until the target PID is no longer running
+while ps -p "$TARGET_PID" > /dev/null 2>&1; do
+  # Wait
+  sleep 3
+done
 
 # After the process exits, kill the specified process by name (if still running)
 pkill -9 "$PROCESS_NAME_TO_KILL" > /dev/null 2>&1 || true
 
-# List current mounts
-LISTED_MOUNTS=$(mount -t "$MOUNT_TYPE")
-
-if echo "$LISTED_MOUNTS" | grep -q "$MOUNT_POINT"; then
-  $UMOUNT_CMD "$MOUNT_POINT" > /dev/null 2>&1 || true
-fi
+$UMOUNT_CMD "$MOUNT_POINT" > /dev/null 2>&1 || true
 
 exit 0
 
