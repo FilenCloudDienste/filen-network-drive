@@ -730,10 +730,9 @@ export class VirtualDrive {
 				}
 			}
 
-			await new Promise<void>(resolve => {
-				this.rcloneProcess?.on("exit", resolve)
-				this.rcloneProcess?.kill("SIGTERM")
-			})
+			this.rcloneProcess?.kill("SIGTERM")
+
+			await new Promise<void>(resolve => setTimeout(resolve, 1000))
 
 			if (this.rcloneProcess.pid) {
 				await killProcessByPid(this.rcloneProcess.pid).catch(() => {})
