@@ -185,23 +185,52 @@ export async function isWinFSPInstalled(): Promise<boolean> {
 	return false
 }
 
-export async function isFUSEInstalledOnLinux(): Promise<boolean> {
+export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 	if (process.platform !== "linux") {
 		return false
 	}
 
 	try {
-		const stdout = await execCommand(
+		// First check if fuse3 binary is installed using `which`
+		const fuse3Check = await execCommand("which fuse3")
+
+		if (fuse3Check.trim().length > 0 && fuse3Check.includes("/")) {
+			return true
+		}
+
+		// DPKG check
+		const dpkg = await execCommand(
 			// eslint-disable-next-line quotes
 			'dpkg -l | grep -E "^ii\\s+fuse3\\s|^ii\\s+libfuse3\\s"'
 		)
 
-		if (!stdout.includes("fuse3")) {
-			return false
+		if (dpkg.includes("fuse3")) {
+			return true
 		}
 
-		return true
-	} catch {
+		// Fallback: Check using `pkg-config` if fuse3 libraries are installed
+		const pkgConfigCheck = await execCommand("pkg-config --exists fuse3 || echo $?")
+
+		if (pkgConfigCheck.trim() === "0") {
+			return true
+		}
+
+		// Fallback: Check if `yum` or `apk` package manager contains fuse3 package
+		const yumCheck = await execCommand("yum list installed fuse3 || echo $?")
+
+		if (!yumCheck.toLowerCase().includes("no matching packages")) {
+			return true
+		}
+
+		const apkCheck = await execCommand("apk info fuse3 || echo $?")
+
+		if (!apkCheck.toLowerCase().includes("fuse3 not found")) {
+			return true
+		}
+
+		// If all methods fail, return false
+		return false
+	} catch (error) {
 		return false
 	}
 }

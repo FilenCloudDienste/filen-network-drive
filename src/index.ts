@@ -9,7 +9,7 @@ import {
 	isProcessRunning,
 	killProcessByPid,
 	killProcessByName,
-	isFUSEInstalledOnLinux,
+	isFUSE3InstalledOnLinux,
 	isWinFSPInstalled,
 	getAvailableCacheSize,
 	getAvailableDriveLetters,
@@ -656,7 +656,7 @@ export class VirtualDrive {
 				} catch (e) {
 					reject(e)
 				}
-			}, 15000)
+			}, 30000)
 
 			this.rcloneProcess = spawn(normalizePathForCmd(binaryPath), args, {
 				stdio: "ignore",
@@ -743,16 +743,9 @@ export class VirtualDrive {
 		await killProcessByName(rcloneBinaryName).catch(() => {})
 
 		if (process.platform === "linux" || process.platform === "darwin") {
-			const umountCmd =
-				process.platform === "darwin"
-					? `umount -f ${normalizePathForCmd(this.mountPoint)}`
-					: `fusermount -uzq ${normalizePathForCmd(this.mountPoint)}`
-			const listCmd = `mount -t ${process.platform === "linux" ? "fuse.rclone" : "nfs"}`
-			const listedMounts = await execCommand(listCmd)
-
-			if (listedMounts.length > 0 && listedMounts.includes(this.mountPoint)) {
-				await execCommand(umountCmd).catch(() => {})
-			}
+			await execCommand(
+				process.platform === "darwin" ? `umount -f "${this.mountPoint}"` : `fusermount -uzq "${this.mountPoint}"`
+			).catch(() => {})
 		}
 	}
 
@@ -773,8 +766,8 @@ export class VirtualDrive {
 				throw new Error("WinFSP not installed.")
 			}
 
-			if (process.platform === "linux" && !(await isFUSEInstalledOnLinux())) {
-				throw new Error("FUSE not installed.")
+			if (process.platform === "linux" && !(await isFUSE3InstalledOnLinux())) {
+				throw new Error("FUSE3 not installed.")
 			}
 
 			if (process.platform === "win32") {
