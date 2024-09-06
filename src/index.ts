@@ -671,6 +671,8 @@ export class VirtualDrive {
 			this.rcloneProcess.on("error", err => {
 				rcloneSpawned = false
 
+				this.rcloneProcess = null
+
 				clearInterval(checkInterval)
 				clearTimeout(checkTimeout)
 
@@ -728,7 +730,10 @@ export class VirtualDrive {
 				}
 			}
 
-			this.rcloneProcess?.kill("SIGKILL")
+			await new Promise<void>(resolve => {
+				this.rcloneProcess?.on("exit", resolve)
+				this.rcloneProcess?.kill("SIGTERM")
+			})
 
 			if (this.rcloneProcess.pid) {
 				await killProcessByPid(this.rcloneProcess.pid).catch(() => {})
