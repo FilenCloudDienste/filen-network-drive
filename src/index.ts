@@ -535,7 +535,14 @@ export class VirtualDrive {
 			throw new Error(`Virtual drive config not found at ${configPath}.`)
 		}
 
-		await fs.emptyDir(cachePath)
+		await fs.rm(cachePath, {
+			force: true,
+			maxRetries: 60 * 10,
+			recursive: true,
+			retryDelay: 100
+		})
+
+		await fs.ensureDir(cachePath)
 
 		if (this.logFilePath) {
 			if (await fs.exists(this.logFilePath)) {
