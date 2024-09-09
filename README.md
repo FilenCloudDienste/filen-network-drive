@@ -1,9 +1,9 @@
 <br/>
 <p align="center">
-  <h3 align="center">Filen Virtual Drive</h3>
+  <h3 align="center">Filen Network Drive</h3>
 
   <p align="center">
-    A package to mount a Filen account as a virtual drive.
+    A package to mount a Filen account as a network drive.
     <br/>
     <br/>
   </p>
@@ -27,7 +27,7 @@ npm install @filen/network-drive@latest
 
 ```typescript
 import FilenSDK from "@filen/sdk"
-import VirtualDrive from "@filen/network-drive"
+import NetworkDrive from "@filen/network-drive"
 import path from "path"
 import os from "os"
 
@@ -44,14 +44,14 @@ await filen.login({
 	twoFactorCode: "123456"
 })
 
-const virtualDrive = new VirtualDrive({
+const networkDrive = new NetworkDrive({
 	sdk: filen,
 	mountPoint: "X:" // or /path/to/mount on Linux/macOS
 })
 
-await virtualDrive.start()
+await networkDrive.start()
 
-console.log("Virtual drive started")
+console.log("Network drive started")
 ```
 
 ## License

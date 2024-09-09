@@ -27,6 +27,7 @@ import writeFileAtomic from "write-file-atomic"
 import axios from "axios"
 import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
 import { writeMonitorScriptAndReturnPath } from "./monitor"
+import Logger from "./logger"
 
 export const RCLONE_VERSION = "1670"
 export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
@@ -56,10 +57,10 @@ export const RCLONE_HASHES: Record<string, string> = {
  * Description placeholder
  *
  * @export
- * @class VirtualDrive
- * @typedef {VirtualDrive}
+ * @class NetworkDrive
+ * @typedef {NetworkDrive}
  */
-export class VirtualDrive {
+export class NetworkDrive {
 	private readonly sdk: FilenSDK
 	private webdavServer: WebDAVServer | null = null
 	private rcloneProcess: ChildProcess | null = null
@@ -82,28 +83,31 @@ export class VirtualDrive {
 	private readonly readOnly: boolean
 	private rclonePort: number = 1906
 	private monitorScriptPath: string | null = null
+	public logger: Logger
 
 	/**
-	 * Creates an instance of VirtualDrive.
+	 * Creates an instance of NetworkDrive.
 	 *
 	 * @constructor
 	 * @public
 	 * @param {{
 	 * 		sdk?: FilenSDK
-	 * 		sdkConfig: FilenSDKConfig
+	 * 		sdkConfig?: FilenSDKConfig
 	 * 		cachePath?: string
 	 * 		mountPoint: string
 	 * 		cacheSize?: number
 	 * 		logFilePath?: string
 	 * 		readOnly?: boolean
+	 * 		disableLogging?: boolean
 	 * 	}} param0
 	 * @param {FilenSDK} param0.sdk
 	 * @param {FilenSDKConfig} param0.sdkConfig
 	 * @param {string} param0.cachePath
-	 * @param {string} param0.mountPoint "X:" uppercase drive letter following : on windows, /path/to/mount of linux/macos
-	 * @param {number} param0.cacheSize in Gibibytes
+	 * @param {string} param0.mountPoint
+	 * @param {number} param0.cacheSize
 	 * @param {string} param0.logFilePath
-	 * @param {boolean} param0.readOnly set the mount to readOnly mode
+	 * @param {boolean} [param0.readOnly=false]
+	 * @param {boolean} [param0.disableLogging=false]
 	 */
 	public constructor({
 		sdk,
@@ -112,7 +116,8 @@ export class VirtualDrive {
 		mountPoint,
 		cacheSize,
 		logFilePath,
-		readOnly
+		readOnly = false,
+		disableLogging = false
 	}: {
 		sdk?: FilenSDK
 		sdkConfig?: FilenSDKConfig
@@ -121,6 +126,7 @@ export class VirtualDrive {
 		cacheSize?: number
 		logFilePath?: string
 		readOnly?: boolean
+		disableLogging?: boolean
 	}) {
 		if (!sdk && !sdkConfig) {
 			throw new Error("Either pass a configured SDK instance OR a SDKConfig object to the constructor.")
@@ -137,7 +143,8 @@ export class VirtualDrive {
 		this.mountPoint = mountPoint
 		this.cacheSize = cacheSize ? cacheSize : 10
 		this.logFilePath = logFilePath
-		this.readOnly = typeof readOnly === "boolean" ? readOnly : false
+		this.readOnly = readOnly
+		this.logger = new Logger(disableLogging, false)
 
 		// Start downloading the binary in the background
 		this.getRCloneBinaryPath().catch(() => {})
@@ -146,7 +153,7 @@ export class VirtualDrive {
 	}
 
 	/**
-	 * Monitor the virtual drive in the background.
+	 * Monitor the network drive in the background.
 	 * If the underlying WebDAV server or the drive itself becomes unavailable, cleanup.
 	 *
 	 * @private
@@ -162,6 +169,9 @@ export class VirtualDrive {
 			if (!(await this.isMountActuallyActive())) {
 				await this.stop()
 			}
+		} catch (e) {
+			this.logger.log("error", e, "monitor")
+			this.logger.log("error", e)
 		} finally {
 			await new Promise<void>(resolve => setTimeout(resolve, 15000))
 
@@ -258,6 +268,11 @@ export class VirtualDrive {
 				}
 
 				this.rcloneBinaryPath = binaryPath
+			} catch (e) {
+				this.logger.log("error", e, "getRCloneBinaryPath")
+				this.logger.log("error", e)
+
+				throw e
 			} finally {
 				this.getRCloneBinaryMutex.release()
 			}
@@ -380,7 +395,10 @@ export class VirtualDrive {
 			const stat = await fs.stat(this.mountPoint)
 
 			return process.platform === "darwin" || process.platform === "linux" ? stat.ino === 0 || stat.birthtimeMs === 0 : stat.ino === 1
-		} catch {
+		} catch (e) {
+			this.logger.log("error", e, "isMountActuallyActive")
+			this.logger.log("error", e)
+
 			return false
 		}
 	}
@@ -528,11 +546,11 @@ export class VirtualDrive {
 		])
 
 		if (!(await fs.exists(binaryPath))) {
-			throw new Error(`Virtual drive binary not found at ${binaryPath}.`)
+			throw new Error(`Network drive binary not found at ${binaryPath}.`)
 		}
 
 		if (!(await fs.exists(configPath))) {
-			throw new Error(`Virtual drive config not found at ${configPath}.`)
+			throw new Error(`Network drive config not found at ${configPath}.`)
 		}
 
 		await fs.rm(cachePath, {
@@ -659,7 +677,7 @@ export class VirtualDrive {
 
 					await this.stop()
 
-					reject(new Error("Could not start virtual drive."))
+					reject(new Error("Could not start network drive."))
 				} catch (e) {
 					reject(e)
 				}
@@ -694,7 +712,7 @@ export class VirtualDrive {
 				clearInterval(checkInterval)
 				clearTimeout(checkTimeout)
 
-				reject(new Error("Could not start virtual drive."))
+				reject(new Error("Could not start network drive."))
 			})
 		})
 	}
@@ -756,7 +774,7 @@ export class VirtualDrive {
 	}
 
 	/**
-	 * Start the virtual drive.
+	 * Start the network drive.
 	 *
 	 * @public
 	 * @async
@@ -780,7 +798,7 @@ export class VirtualDrive {
 				const availableDriveLetters = await getAvailableDriveLetters()
 
 				if (!availableDriveLetters.includes(this.mountPoint)) {
-					throw new Error(`Cannot mount virtual drive at ${this.mountPoint}: Drive letter exists.`)
+					throw new Error(`Cannot mount network drive at ${this.mountPoint}: Drive letter exists.`)
 				}
 			} else {
 				if (process.platform === "linux" && !this.mountPoint.startsWith(`/home/${process.env.USER ?? "user"}`)) {
@@ -792,11 +810,11 @@ export class VirtualDrive {
 				}
 
 				if (!(await isUnixMountPointValid(this.mountPoint))) {
-					throw new Error(`Cannot mount virtual drive at ${this.mountPoint}: Mount point does not exist.`)
+					throw new Error(`Cannot mount network drive at ${this.mountPoint}: Mount point does not exist.`)
 				}
 
 				if (!(await isUnixMountPointEmpty(this.mountPoint))) {
-					throw new Error(`Cannot mount virtual drive at ${this.mountPoint}: Mount point not empty.`)
+					throw new Error(`Cannot mount network drive at ${this.mountPoint}: Mount point not empty.`)
 				}
 			}
 
@@ -838,17 +856,22 @@ export class VirtualDrive {
 			await this.spawnRClone()
 
 			if (!(await this.isMountActuallyActive())) {
-				throw new Error("Could not start virtual drive.")
+				throw new Error("Could not start network drive.")
 			}
 
 			this.active = true
+		} catch (e) {
+			this.logger.log("error", e, "start")
+			this.logger.log("error", e)
+
+			throw e
 		} finally {
 			this.startMutex.release()
 		}
 	}
 
 	/**
-	 * Stop the virtual drive.
+	 * Stop the network drive.
 	 *
 	 * @public
 	 * @async
@@ -869,6 +892,11 @@ export class VirtualDrive {
 			this.webdavServer = null
 			this.rcloneProcess = null
 			this.active = false
+		} catch (e) {
+			this.logger.log("error", e, "stop")
+			this.logger.log("error", e)
+
+			throw e
 		} finally {
 			this.stopMutex.release()
 		}
@@ -876,4 +904,4 @@ export class VirtualDrive {
 }
 
 export * from "./utils"
-export default VirtualDrive
+export default NetworkDrive
