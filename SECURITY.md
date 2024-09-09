@@ -2,11 +2,11 @@
 
 ## Supported Versions
 
-The latest release version of filen-virtual-drive is currently being supported with security updates
+The latest release version of filen-network-drive is currently being supported with security updates
 
 ## Reporting a Vulnerability
 
-Security is very important to us. If you have discovered a security issue with filen-virtual-drive,
+Security is very important to us. If you have discovered a security issue with filen-network-drive,
 please read our responsible disclosure guidelines and contact us at [https://support.filen.io](https://support.filen.io).
 Your report should include:
 

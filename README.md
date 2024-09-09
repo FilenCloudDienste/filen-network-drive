@@ -9,7 +9,7 @@
   </p>
 </p>
 
-![Contributors](https://img.shields.io/github/contributors/FilenCloudDienste/filen-virtual-drive?color=dark-green) ![Forks](https://img.shields.io/github/forks/FilenCloudDienste/filen-virtual-drive?style=social) ![Stargazers](https://img.shields.io/github/stars/FilenCloudDienste/filen-virtual-drive?style=social) ![Issues](https://img.shields.io/github/issues/FilenCloudDienste/filen-virtual-drive) ![License](https://img.shields.io/github/license/FilenCloudDienste/filen-virtual-drive)
+![Contributors](https://img.shields.io/github/contributors/FilenCloudDienste/filen-network-drive?color=dark-green) ![Forks](https://img.shields.io/github/forks/FilenCloudDienste/filen-network-drive?style=social) ![Stargazers](https://img.shields.io/github/stars/FilenCloudDienste/filen-network-drive?style=social) ![Issues](https://img.shields.io/github/issues/FilenCloudDienste/filen-network-drive) ![License](https://img.shields.io/github/license/FilenCloudDienste/filen-network-drive)
 
 # Attention
 
@@ -20,14 +20,14 @@ The package is still a work in progress. DO NOT USE IT IN PRODUCTION YET. Class 
 1. Install using NPM
 
 ```sh
-npm install @filen/virtual-drive@latest
+npm install @filen/network-drive@latest
 ```
 
-2. Initialize the virtual drive
+2. Initialize the network drive
 
 ```typescript
 import FilenSDK from "@filen/sdk"
-import VirtualDrive from "@filen/virtual-drive"
+import VirtualDrive from "@filen/network-drive"
 import path from "path"
 import os from "os"
 
@@ -56,4 +56,4 @@ console.log("Virtual drive started")
 
 ## License
 
-Distributed under the AGPL-3.0 License. See [LICENSE](https://github.com/FilenCloudDienste/filen-virtual-drive/blob/main/LICENSE.md) for more information.
+Distributed under the AGPL-3.0 License. See [LICENSE](https://github.com/FilenCloudDienste/filen-network-drive/blob/main/LICENSE.md) for more information.

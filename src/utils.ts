@@ -45,7 +45,7 @@ export async function platformConfigPath(): Promise<string> {
 		throw new Error("Could not find homedir path.")
 	}
 
-	configPath = pathModule.join(configPath, "filen-virtual-drive")
+	configPath = pathModule.join(configPath, "@filen", "network-drive")
 
 	if (!(await fs.exists(configPath))) {
 		await fs.mkdir(configPath, {
