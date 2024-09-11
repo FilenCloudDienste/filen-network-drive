@@ -29,7 +29,7 @@ import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
 import { writeMonitorScriptAndReturnPath } from "./monitor"
 import Logger from "./logger"
 
-export const RCLONE_VERSION = "1670"
+export const RCLONE_VERSION = "1680"
 export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
 	process.platform === "win32" ? ".exe" : ""
 }`
