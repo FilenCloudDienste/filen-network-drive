@@ -1,6 +1,6 @@
 {
 	"name": "@filen/network-drive",
-	"version": "0.9.9",
+	"version": "0.9.10",
 	"description": "Filen Network Drive",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",

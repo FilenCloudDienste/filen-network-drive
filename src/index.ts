@@ -454,9 +454,11 @@ export class NetworkDrive {
 		const excludePatterns = [
 			// macOS temporary files and folders
 			".DS_Store",
-			"**.DS_Store**",
-			"**.nfs.**",
+			"._.DS_Store",
+			"*.DS_Store*",
+			"*.nfs.*",
 			"._*",
+			"*._*",
 			".Trashes/**",
 			".Spotlight-V100/**",
 			".TemporaryItems/**",
@@ -497,8 +499,8 @@ export class NetworkDrive {
 			"--vfs-cache-min-free-space 5Gi",
 			"--vfs-cache-max-age 720h",
 			"--vfs-cache-poll-interval 1m",
-			"--dir-cache-time 1m",
-			"--cache-info-age 1m",
+			"--dir-cache-time 3s",
+			"--cache-info-age 5s",
 			// Already present in the SDK fs() class
 			//"--vfs-block-norm-dupes",
 			"--noappledouble",
