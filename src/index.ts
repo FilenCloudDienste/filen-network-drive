@@ -454,6 +454,8 @@ export class NetworkDrive {
 		const excludePatterns = [
 			// macOS temporary files and folders
 			".DS_Store",
+			"**.DS_Store**",
+			"**.nfs.**",
 			"._*",
 			".Trashes/**",
 			".Spotlight-V100/**",
