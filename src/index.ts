@@ -29,6 +29,7 @@ import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
 import { writeMonitorScriptAndReturnPath } from "./monitor"
 import Logger from "./logger"
 
+export const EXCLUDE_VERSION = 1
 export const RCLONE_VERSION = "1680"
 export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
 	process.platform === "win32" ? ".exe" : ""
@@ -84,6 +85,7 @@ export class NetworkDrive {
 	private rclonePort: number = 1906
 	private monitorScriptPath: string | null = null
 	public logger: Logger
+	private excludeFilePath: string | null = null
 
 	/**
 	 * Creates an instance of NetworkDrive.
@@ -192,6 +194,14 @@ export class NetworkDrive {
 		}
 
 		return this.configPath
+	}
+
+	private async getExcludeFilePath(): Promise<string> {
+		if (!this.excludeFilePath) {
+			this.excludeFilePath = await this.writeExcludeFileAndReturnPath()
+		}
+
+		return this.excludeFilePath
 	}
 
 	/**
@@ -417,6 +427,50 @@ export class NetworkDrive {
 		return await execCommand(`${normalizePathForCmd(binaryPath)} obscure ${password}`)
 	}
 
+	private async writeExcludeFileAndReturnPath(): Promise<string> {
+		const configPath = await platformConfigPath()
+		const excludePath = pathModule.join(configPath, `exclude.v${EXCLUDE_VERSION}.txt`)
+
+		if (!(await fs.exists(excludePath))) {
+			const excludePatterns = [
+				// macOS temporary files and folders
+				".DS_Store",
+				"._.DS_Store",
+				"*.DS_Store*",
+				"*.nfs.*",
+				"._*",
+				"*._*",
+				".Trashes/**",
+				".Spotlight-V100/**",
+				".TemporaryItems/**",
+				// Windows temporary files and folders
+				"*.tmp",
+				"~*",
+				"Thumbs.db",
+				"desktop.ini",
+				"$RECYCLE.BIN/**",
+				"System Volume Information/**",
+				"Temp/**",
+				"AppData/Local/Temp/**",
+				// Linux temporary files and folders
+				".Trash*",
+				"*.swp",
+				"*.temp",
+				".*.swx",
+				"/tmp/**",
+				"/var/tmp/**",
+				// Other common exclusions
+				"**/.cache/**",
+				"**/Cache/**",
+				"**/.npm/_cacache/**"
+			]
+
+			await writeFileAtomic(excludePath, excludePatterns.join("\n"), "utf-8")
+		}
+
+		return excludePath
+	}
+
 	/**
 	 * Write the RClone config locally.
 	 *
@@ -449,41 +503,7 @@ export class NetworkDrive {
 	 * @returns {Promise<string[]>}
 	 */
 	private async rcloneArgs({ cachePath, configPath }: { cachePath: string; configPath: string }): Promise<string[]> {
-		const availableCacheSize = await getAvailableCacheSize(cachePath)
-
-		const excludePatterns = [
-			// macOS temporary files and folders
-			".DS_Store",
-			"._.DS_Store",
-			"*.DS_Store*",
-			"*.nfs.*",
-			"._*",
-			"*._*",
-			".Trashes/**",
-			".Spotlight-V100/**",
-			".TemporaryItems/**",
-			// Windows temporary files and folders
-			"*.tmp",
-			"~*",
-			"Thumbs.db",
-			"desktop.ini",
-			"$RECYCLE.BIN/**",
-			"System Volume Information/**",
-			"Temp/**",
-			"AppData/Local/Temp/**",
-			// Linux temporary files and folders
-			".Trash*",
-			"*.swp",
-			"*.temp",
-			".*.swx",
-			"/tmp/**",
-			"/var/tmp/**",
-			// Other common exclusions
-			"**/.cache/**",
-			"**/Cache/**",
-			"**/.npm/_cacache/**"
-		]
-
+		const [availableCacheSize, excludeFilePath] = await Promise.all([getAvailableCacheSize(cachePath), this.getExcludeFilePath()])
 		const availableCacheSizeGib = Math.floor(availableCacheSize / (1024 / 1024 / 1024))
 		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
 
@@ -518,7 +538,8 @@ export class NetworkDrive {
 			"--vfs-read-ahead 1024Mi",
 			"--vfs-read-chunk-size-limit 0",
 			"--no-checksum",
-			//"--transfers 10",
+			"--transfers 10",
+			"--min-size 1B",
 			"--vfs-fast-fingerprint",
 			//"--allow-other",
 			"--rc",
@@ -530,7 +551,7 @@ export class NetworkDrive {
 				? // eslint-disable-next-line quotes
 				  ['-o FileSecurity="D:P(A;;FA;;;WD)"', "--network-mode"]
 				: []),
-			...excludePatterns.map(pattern => `--exclude "${pattern}"`)
+			`--exclude-from "${excludeFilePath}"`
 		]
 	}
 
@@ -681,7 +702,7 @@ export class NetworkDrive {
 
 					await this.stop()
 
-					reject(new Error("Could not start network drive."))
+					reject(new Error("Could not start network drive (timeout)."))
 				} catch (e) {
 					reject(e)
 				}
@@ -716,7 +737,7 @@ export class NetworkDrive {
 				clearInterval(checkInterval)
 				clearTimeout(checkTimeout)
 
-				reject(new Error("Could not start network drive."))
+				reject(new Error("Could not start network drive (exit)."))
 			})
 		})
 	}
@@ -860,7 +881,7 @@ export class NetworkDrive {
 			await this.spawnRClone()
 
 			if (!(await this.isMountActuallyActive())) {
-				throw new Error("Could not start network drive.")
+				throw new Error("Could not start network drive (not active).")
 			}
 
 			this.active = true
