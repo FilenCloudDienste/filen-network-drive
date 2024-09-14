@@ -54,6 +54,39 @@ export const RCLONE_HASHES: Record<string, string> = {
 		"55ece9582bbbc4339494d3d0611b30187bd5e49f7b593c7baa46a156256055273c5c7751124b90c9e66b990effeaf9ac0a6155ecd777dd9791b848a4f7c3c287"
 }
 
+export const excludePatterns = [
+	// macOS temporary files and folders
+	".DS_Store",
+	"._.DS_Store",
+	"*.DS_Store*",
+	"*.nfs.*",
+	"._*",
+	"*._*",
+	".Trashes/**",
+	".Spotlight-V100/**",
+	".TemporaryItems/**",
+	// Windows temporary files and folders
+	"*.tmp",
+	"~*",
+	"Thumbs.db",
+	"desktop.ini",
+	"$RECYCLE.BIN/**",
+	"System Volume Information/**",
+	"Temp/**",
+	"AppData/Local/Temp/**",
+	// Linux temporary files and folders
+	".Trash*",
+	"*.swp",
+	"*.temp",
+	".*.swx",
+	"/tmp/**",
+	"/var/tmp/**",
+	// Other common exclusions
+	"**/.cache/**",
+	"**/Cache/**",
+	"**/.npm/_cacache/**"
+]
+
 /**
  * Description placeholder
  *
@@ -432,39 +465,6 @@ export class NetworkDrive {
 		const excludePath = pathModule.join(configPath, `exclude.v${EXCLUDE_VERSION}.txt`)
 
 		if (!(await fs.exists(excludePath))) {
-			const excludePatterns = [
-				// macOS temporary files and folders
-				".DS_Store",
-				"._.DS_Store",
-				"*.DS_Store*",
-				"*.nfs.*",
-				"._*",
-				"*._*",
-				".Trashes/**",
-				".Spotlight-V100/**",
-				".TemporaryItems/**",
-				// Windows temporary files and folders
-				"*.tmp",
-				"~*",
-				"Thumbs.db",
-				"desktop.ini",
-				"$RECYCLE.BIN/**",
-				"System Volume Information/**",
-				"Temp/**",
-				"AppData/Local/Temp/**",
-				// Linux temporary files and folders
-				".Trash*",
-				"*.swp",
-				"*.temp",
-				".*.swx",
-				"/tmp/**",
-				"/var/tmp/**",
-				// Other common exclusions
-				"**/.cache/**",
-				"**/Cache/**",
-				"**/.npm/_cacache/**"
-			]
-
 			await writeFileAtomic(excludePath, excludePatterns.join("\n"), "utf-8")
 		}
 
@@ -867,7 +867,8 @@ export class NetworkDrive {
 					windowMs: 1000,
 					limit: 10000,
 					key: "ip"
-				}
+				},
+				tempFilesToStoreOnDisk: excludePatterns
 			})
 
 			await this.webdavServer.start()
