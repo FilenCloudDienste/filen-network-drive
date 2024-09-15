@@ -294,15 +294,13 @@ export class NetworkDrive {
 		}
 
 		const tempPath = pathModule.join(os.tmpdir(), FUSE_T_BINARY_NAME)
-		// eslint-disable-next-line no-useless-escape
-		const tempPathEscaped = `\"${tempPath}\"`
 
 		await downloadBinaryAndVerifySHA512(FUSE_T_URL, tempPath, BINARY_HASHES[FUSE_T_BINARY_NAME]!)
 
 		try {
 			await new Promise<void>((resolve, reject) => {
 				sudoPrompt.exec(
-					`osascript -e 'do shell script "/usr/sbin/installer -pkg ${tempPathEscaped} -target /" with administrator privileges'`,
+					`osascript -e 'do shell script "/usr/sbin/installer -pkg ${tempPath} -target /" with administrator privileges'`,
 					{
 						name: "Filen"
 					},
@@ -339,6 +337,54 @@ export class NetworkDrive {
 				recursive: true,
 				retryDelay: 100
 			})
+		}
+	}
+
+	/**
+	 * Add Filen as a host entry for localhost. Used for macOS fuse-t.
+	 *
+	 * @private
+	 * @async
+	 * @returns {Promise<void>}
+	 */
+	private async addHostsEntry(): Promise<void> {
+		if (process.platform !== "darwin") {
+			return
+		}
+
+		try {
+			if (process.platform === "darwin") {
+				const hosts = await fs.readFile("/etc/hosts", "utf-8")
+				const hostLines = hosts.split("\n")
+				const foundHostEntry = hostLines.some(line => {
+					line = line.trim().split(" ").join("")
+
+					return line.includes("127.0.0.1") && line.includes("Filen") && !line.includes("#")
+				})
+
+				if (!foundHostEntry) {
+					await new Promise<void>((resolve, reject) => {
+						sudoPrompt.exec(
+							// eslint-disable-next-line quotes
+							`sh -c 'echo "127.0.0.1 Filen" >> /etc/hosts'`,
+							{
+								name: "Filen"
+							},
+							err => {
+								if (err) {
+									reject(err)
+
+									return
+								}
+
+								resolve()
+							}
+						)
+					})
+				}
+			}
+		} catch {
+			// Noop
 		}
 	}
 
@@ -497,7 +543,7 @@ export class NetworkDrive {
 
 			const stat = await fs.stat(this.mountPoint)
 
-			return process.platform === "darwin" || process.platform === "linux" ? stat.ino === 0 || stat.birthtimeMs === 0 : stat.ino === 1
+			return process.platform === "linux" ? stat.ino === 0 || stat.birthtimeMs === 0 : stat.ino === 1
 		} catch (e) {
 			this.logger.log("error", e, "isMountActuallyActive")
 			this.logger.log("error", e)
@@ -568,13 +614,9 @@ export class NetworkDrive {
 			"--vfs-cache-poll-interval 1m",
 			"--dir-cache-time 3s",
 			"--cache-info-age 5s",
-			// Already present in the SDK fs() class
-			//"--vfs-block-norm-dupes",
 			"--noappledouble",
 			"--noapplexattr",
 			"--no-gzip-encoding",
-			//"--low-level-retries 10",
-			//"--retries 10",
 			"--use-mmap",
 			"--disable-http2",
 			"--file-perms 0666",
@@ -585,10 +627,8 @@ export class NetworkDrive {
 			"--vfs-read-ahead 1024Mi",
 			"--vfs-read-chunk-size-limit 0",
 			"--no-checksum",
-			"--transfers 10",
-			"--min-size 1B",
+			"--transfers 16",
 			"--vfs-fast-fingerprint",
-			//"--allow-other",
 			"--rc",
 			`--rc-addr 127.0.0.1:${this.rclonePort}`,
 			...(this.logFilePath ? [`--log-file "${this.logFilePath}"`] : []),
@@ -597,7 +637,8 @@ export class NetworkDrive {
 			...(process.platform === "win32"
 				? // eslint-disable-next-line quotes
 				  ['-o FileSecurity="D:P(A;;FA;;;WD)"', "--network-mode"]
-				: [])
+				: []),
+			...(process.platform === "darwin" ? ["-o nomtime", "-o backend=nfs", "-o location=Filen"] : [])
 		]
 	}
 
@@ -613,8 +654,7 @@ export class NetworkDrive {
 			this.getRCloneBinaryPath(),
 			this.getRCloneConfigPath(),
 			this.getCachePath(),
-			this.getMonitorScriptPath(),
-			this.installFuseTMacOS()
+			this.getMonitorScriptPath()
 		])
 
 		if (!(await fs.exists(binaryPath))) {
@@ -643,6 +683,9 @@ export class NetworkDrive {
 				}
 			}
 		}
+
+		await this.installFuseTMacOS()
+		await this.addHostsEntry()
 
 		// The monitor process is a pretty dirty workaround to a specific problem.
 		// When spawning a child process in an Electron environment the child process does not get killed when the parent process (Electron) exits (nobody knows why).
@@ -866,7 +909,7 @@ export class NetworkDrive {
 				throw new Error("FUSE3 not installed.")
 			}
 
-			if (process.platform === "darwin" && !(await isFUSETInstalledOnMacOS())) {
+			if (process.platform === "darwin" && !this.tryToInstallDependencies && !(await isFUSETInstalledOnMacOS())) {
 				throw new Error("FUSE-T not installed.")
 			}
 

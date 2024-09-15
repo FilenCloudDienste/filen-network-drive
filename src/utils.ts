@@ -269,7 +269,7 @@ export async function getFuseTVersion(): Promise<{
 					const version = match[1]
 					const [major, minor, patch] = version.split(".").map(Number)
 
-					if (major && minor && patch) {
+					if (typeof major !== "undefined" && typeof minor !== "undefined" && typeof patch !== "undefined") {
 						const versionNumber = major * 1_000_000 + minor * 1_000 + patch
 
 						return {
