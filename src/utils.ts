@@ -9,6 +9,7 @@ import sudoPrompt from "sudo-prompt"
 import net from "net"
 import https from "https"
 import diskusage from "diskusage-ng"
+import { FUSE_T_VERSION_NUMBER } from "."
 
 export const httpsAgent = new https.Agent({
 	rejectUnauthorized: false
@@ -238,6 +239,71 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 		const apkCheck = await execCommand("apk info fuse3 || echo $?")
 
 		if (!apkCheck.toLowerCase().includes("fuse3 not found")) {
+			return true
+		}
+	} catch {
+		// Noop
+	}
+
+	return false
+}
+
+const versionRegex = /(\d+\.\d+\.\d+)/
+
+export async function getFuseTVersion(): Promise<{
+	version: string
+	versionNumber: number
+} | null> {
+	if (process.platform !== "darwin") {
+		return null
+	}
+
+	try {
+		const dir = await fs.readdir("/usr/local/lib")
+
+		for (const file of dir) {
+			if (file.startsWith("libfuse-t-") && (file.endsWith(".a") || file.endsWith(".dylib"))) {
+				const match = file.match(versionRegex)
+
+				if (match && match[1]) {
+					const version = match[1]
+					const [major, minor, patch] = version.split(".").map(Number)
+
+					if (major && minor && patch) {
+						const versionNumber = major * 1_000_000 + minor * 1_000 + patch
+
+						return {
+							version,
+							versionNumber
+						}
+					}
+				}
+			}
+		}
+	} catch {
+		// Noop
+	}
+
+	return null
+}
+
+export async function isFUSETInstalledOnMacOS(): Promise<boolean> {
+	if (process.platform !== "darwin") {
+		return false
+	}
+
+	try {
+		if ((await fs.exists("/usr/local/lib/libfuse-t.a")) && (await fs.exists("/usr/local/lib/libfuse-t.dylib"))) {
+			const version = await getFuseTVersion()
+
+			if (version && version.version && version.versionNumber) {
+				if (version.versionNumber >= FUSE_T_VERSION_NUMBER) {
+					return true
+				}
+
+				return false
+			}
+
 			return true
 		}
 	} catch {

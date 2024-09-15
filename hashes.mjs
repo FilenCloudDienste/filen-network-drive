@@ -64,7 +64,13 @@ async function downloadAndHashMultiple(urls) {
 			console.log(`SHA-512 hash for ${url}: ${hash}`)
 
 			// Add the hash to the result record
-			result[url] = hash
+			result[
+				url
+					.split("https://cdn.filen.io/@filen/desktop/bin/fuse-t/")
+					.join("")
+					.split("https://cdn.filen.io/@filen/desktop/bin/rclone/")
+					.join("")
+			] = hash
 
 			// Remove the temporary file
 			fs.unlinkSync(tmpFilePath)
@@ -77,17 +83,19 @@ async function downloadAndHashMultiple(urls) {
 	return result
 }
 
-const version = "1680"
+const rcloneVersion = "1680"
+const fuseTVersion = "1041"
 const urls = [
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_arm64_" + version,
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_x64_" + version,
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_linux_arm64_" + version,
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_linux_ia32_" + version,
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_linux_x64_" + version,
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_arm64_" + version + ".exe",
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_ia32_" + version + ".exe",
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_ia32_" + version + ".exe",
-	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_x64_" + version + ".exe"
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_arm64_" + rcloneVersion,
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_x64_" + rcloneVersion,
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_linux_arm64_" + rcloneVersion,
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_linux_ia32_" + rcloneVersion,
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_linux_x64_" + rcloneVersion,
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_arm64_" + rcloneVersion + ".exe",
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_ia32_" + rcloneVersion + ".exe",
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_ia32_" + rcloneVersion + ".exe",
+	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_x64_" + rcloneVersion + ".exe",
+	"https://cdn.filen.io/@filen/desktop/bin/fuse-t/fuse_t_" + fuseTVersion + ".pkg"
 ]
 
 downloadAndHashMultiple(urls).then(hashes => {

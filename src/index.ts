@@ -10,6 +10,7 @@ import {
 	killProcessByPid,
 	killProcessByName,
 	isFUSE3InstalledOnLinux,
+	isFUSETInstalledOnMacOS,
 	isWinFSPInstalled,
 	getAvailableCacheSize,
 	getAvailableDriveLetters,
@@ -28,14 +29,19 @@ import axios from "axios"
 import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
 import { writeMonitorScriptAndReturnPath } from "./monitor"
 import Logger from "./logger"
+import sudoPrompt from "@vscode/sudo-prompt"
+import os from "os"
 
-export const EXCLUDE_VERSION = 1
 export const RCLONE_VERSION = "1680"
-export const rcloneBinaryName = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
+export const FUSE_T_VERSION = "1041"
+export const FUSE_T_VERSION_NUMBER = 1000041
+export const RCLONE_BINARY_NAME = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
 	process.platform === "win32" ? ".exe" : ""
 }`
-export const RCLONE_URL = `https://cdn.filen.io/@filen/desktop/bin/rclone/${rcloneBinaryName}`
-export const RCLONE_HASHES: Record<string, string> = {
+export const FUSE_T_BINARY_NAME = `fuse_t_${FUSE_T_VERSION}.pkg`
+export const RCLONE_URL = `https://cdn.filen.io/@filen/desktop/bin/rclone/${RCLONE_BINARY_NAME}`
+export const FUSE_T_URL = `https://cdn.filen.io/@filen/desktop/bin/fuse-t/${FUSE_T_BINARY_NAME}`
+export const BINARY_HASHES: Record<string, string> = {
 	filen_rclone_darwin_arm64_1680:
 		"9a92a9ce8addf55cd5a25c7a6ec2d1ac05d24cb1c68afa49f926db837a251944be03920e2c124d35da31e9abe93c690cc4019d716f732aa3396ab16ab9194cf4",
 	filen_rclone_darwin_x64_1680:
@@ -51,11 +57,13 @@ export const RCLONE_HASHES: Record<string, string> = {
 	"filen_rclone_win32_ia32_1680.exe":
 		"2338009b0244a7f6573f4cc9cc01b49a3073cae566c2e26a82688fac6aaf36f67a27ee7524e8e3e65f28954c8ae927ff1710f77c07b2c356f0d6c49e72adabe6",
 	"filen_rclone_win32_x64_1680.exe":
-		"55ece9582bbbc4339494d3d0611b30187bd5e49f7b593c7baa46a156256055273c5c7751124b90c9e66b990effeaf9ac0a6155ecd777dd9791b848a4f7c3c287"
+		"55ece9582bbbc4339494d3d0611b30187bd5e49f7b593c7baa46a156256055273c5c7751124b90c9e66b990effeaf9ac0a6155ecd777dd9791b848a4f7c3c287",
+	"fuse_t_1041.pkg":
+		"e34730bd1440b3ca36b61623aad4c61c9b0dd4e221f239df56a7c41f48d9cf8658bb264767f8536c145664b6e1489e21b75ba48c2a06781f11d1746f933f427c"
 }
 
 export const excludePatterns = [
-	// macOS temporary files and folders
+	// macOS
 	".DS_Store",
 	"._.DS_Store",
 	"*.DS_Store*",
@@ -65,26 +73,16 @@ export const excludePatterns = [
 	".Trashes/**",
 	".Spotlight-V100/**",
 	".TemporaryItems/**",
-	// Windows temporary files and folders
+	// Windows
 	"*.tmp",
 	"~*",
 	"Thumbs.db",
 	"desktop.ini",
-	"$RECYCLE.BIN/**",
-	"System Volume Information/**",
-	"Temp/**",
-	"AppData/Local/Temp/**",
-	// Linux temporary files and folders
+	// Linux
 	".Trash*",
 	"*.swp",
 	"*.temp",
-	".*.swx",
-	"/tmp/**",
-	"/var/tmp/**",
-	// Other common exclusions
-	"**/.cache/**",
-	"**/Cache/**",
-	"**/.npm/_cacache/**"
+	".*.swx"
 ]
 
 /**
@@ -118,7 +116,7 @@ export class NetworkDrive {
 	private rclonePort: number = 1906
 	private monitorScriptPath: string | null = null
 	public logger: Logger
-	private excludeFilePath: string | null = null
+	private readonly tryToInstallDependencies: boolean
 
 	/**
 	 * Creates an instance of NetworkDrive.
@@ -133,7 +131,8 @@ export class NetworkDrive {
 	 * 		cacheSize?: number
 	 * 		logFilePath?: string
 	 * 		readOnly?: boolean
-	 * 		disableLogging?: boolean
+	 * 		disableLogging?: boolean,
+	 * 		tryToInstallDependencies?: boolean
 	 * 	}} param0
 	 * @param {FilenSDK} param0.sdk
 	 * @param {FilenSDKConfig} param0.sdkConfig
@@ -143,6 +142,7 @@ export class NetworkDrive {
 	 * @param {string} param0.logFilePath
 	 * @param {boolean} [param0.readOnly=false]
 	 * @param {boolean} [param0.disableLogging=false]
+	 * @param {boolean} [param0.tryToInstallDependencies=false]
 	 */
 	public constructor({
 		sdk,
@@ -152,7 +152,8 @@ export class NetworkDrive {
 		cacheSize,
 		logFilePath,
 		readOnly = false,
-		disableLogging = false
+		disableLogging = false,
+		tryToInstallDependencies = false
 	}: {
 		sdk?: FilenSDK
 		sdkConfig?: FilenSDKConfig
@@ -162,6 +163,7 @@ export class NetworkDrive {
 		logFilePath?: string
 		readOnly?: boolean
 		disableLogging?: boolean
+		tryToInstallDependencies?: boolean
 	}) {
 		if (!sdk && !sdkConfig) {
 			throw new Error("Either pass a configured SDK instance OR a SDKConfig object to the constructor.")
@@ -179,6 +181,7 @@ export class NetworkDrive {
 		this.cacheSize = cacheSize ? cacheSize : 10
 		this.logFilePath = logFilePath
 		this.readOnly = readOnly
+		this.tryToInstallDependencies = tryToInstallDependencies
 		this.logger = new Logger(disableLogging, false)
 
 		// Start downloading the binary in the background
@@ -229,14 +232,6 @@ export class NetworkDrive {
 		return this.configPath
 	}
 
-	private async getExcludeFilePath(): Promise<string> {
-		if (!this.excludeFilePath) {
-			this.excludeFilePath = await this.writeExcludeFileAndReturnPath()
-		}
-
-		return this.excludeFilePath
-	}
-
 	/**
 	 * Get the monitor script path.
 	 *
@@ -283,6 +278,71 @@ export class NetworkDrive {
 	}
 
 	/**
+	 * Download FUSE-T if it's not installed yet.
+	 *
+	 * @private
+	 * @async
+	 * @returns {Promise<void>}
+	 */
+	private async installFuseTMacOS(): Promise<void> {
+		if (!this.tryToInstallDependencies || process.platform !== "darwin" || (await isFUSETInstalledOnMacOS())) {
+			return
+		}
+
+		if (!BINARY_HASHES[FUSE_T_BINARY_NAME]) {
+			throw new Error("FUSE-T binary hash not found.")
+		}
+
+		const tempPath = pathModule.join(os.tmpdir(), FUSE_T_BINARY_NAME)
+		// eslint-disable-next-line no-useless-escape
+		const tempPathEscaped = `\"${tempPath}\"`
+
+		await downloadBinaryAndVerifySHA512(FUSE_T_URL, tempPath, BINARY_HASHES[FUSE_T_BINARY_NAME]!)
+
+		try {
+			await new Promise<void>((resolve, reject) => {
+				sudoPrompt.exec(
+					`osascript -e 'do shell script "/usr/sbin/installer -pkg ${tempPathEscaped} -target /" with administrator privileges'`,
+					{
+						name: "Filen"
+					},
+					(err, stderr, stdout) => {
+						if (err) {
+							reject(err)
+
+							return
+						}
+
+						if (
+							(stderr instanceof Buffer && stderr.toString("utf-8").toLowerCase().includes("the install was successful")) ||
+							(stdout instanceof Buffer && stdout.toString("utf-8").toLowerCase().includes("the install was successful")) ||
+							(stderr instanceof Buffer && stderr.toString("utf-8").toLowerCase().includes("the upgrade was successful")) ||
+							(stdout instanceof Buffer && stdout.toString("utf-8").toLowerCase().includes("the upgrade was successful")) ||
+							(typeof stderr === "string" && stderr.toLowerCase().includes("the install was successful")) ||
+							(typeof stdout === "string" && stdout.toLowerCase().includes("the install was successful")) ||
+							(typeof stderr === "string" && stderr.toLowerCase().includes("the upgrade was successful")) ||
+							(typeof stdout === "string" && stdout.toLowerCase().includes("the upgrade was successful"))
+						) {
+							resolve()
+
+							return
+						}
+
+						reject(new Error("Could not install fuse-t."))
+					}
+				)
+			})
+		} finally {
+			await fs.rm(tempPath, {
+				force: true,
+				maxRetries: 60 * 10,
+				recursive: true,
+				retryDelay: 100
+			})
+		}
+	}
+
+	/**
 	 * Get the RClone binary path.
 	 * Downloads the binary from our CDN if it does not exist.
 	 *
@@ -296,14 +356,14 @@ export class NetworkDrive {
 
 			try {
 				const configPath = await this.getConfigPath()
-				const binaryPath = pathModule.join(configPath, rcloneBinaryName)
+				const binaryPath = pathModule.join(configPath, RCLONE_BINARY_NAME)
 
 				if (!(await fs.exists(binaryPath))) {
-					if (!RCLONE_HASHES[rcloneBinaryName]) {
-						throw new Error(`Hash for binary name ${rcloneBinaryName} not found in hardcoded record.`)
+					if (!BINARY_HASHES[RCLONE_BINARY_NAME]) {
+						throw new Error(`Hash for binary name ${RCLONE_BINARY_NAME} not found in hardcoded record.`)
 					}
 
-					await downloadBinaryAndVerifySHA512(RCLONE_URL, binaryPath, RCLONE_HASHES[rcloneBinaryName]!)
+					await downloadBinaryAndVerifySHA512(RCLONE_URL, binaryPath, BINARY_HASHES[RCLONE_BINARY_NAME]!)
 
 					if (process.platform !== "win32") {
 						await execCommand(`chmod +x ${normalizePathForCmd(binaryPath)}`)
@@ -428,7 +488,7 @@ export class NetworkDrive {
 			const [mountExists, webdavOnline, rcloneRunning] = await Promise.all([
 				checkIfMountExists(this.mountPoint),
 				this.isWebDAVOnline(),
-				isProcessRunning(rcloneBinaryName)
+				isProcessRunning(RCLONE_BINARY_NAME)
 			])
 
 			if (!mountExists || !webdavOnline || !rcloneRunning) {
@@ -460,17 +520,6 @@ export class NetworkDrive {
 		return await execCommand(`${normalizePathForCmd(binaryPath)} obscure ${password}`)
 	}
 
-	private async writeExcludeFileAndReturnPath(): Promise<string> {
-		const configPath = await platformConfigPath()
-		const excludePath = pathModule.join(configPath, `exclude.v${EXCLUDE_VERSION}.txt`)
-
-		if (!(await fs.exists(excludePath))) {
-			await writeFileAtomic(excludePath, excludePatterns.join("\n"), "utf-8")
-		}
-
-		return excludePath
-	}
-
 	/**
 	 * Write the RClone config locally.
 	 *
@@ -490,7 +539,7 @@ export class NetworkDrive {
 	}
 
 	/**
-	 * Generate the "rclone (nfs)mount" arguments.
+	 * Generate the "rclone mount" arguments.
 	 *
 	 * @private
 	 * @async
@@ -503,14 +552,12 @@ export class NetworkDrive {
 	 * @returns {Promise<string[]>}
 	 */
 	private async rcloneArgs({ cachePath, configPath }: { cachePath: string; configPath: string }): Promise<string[]> {
-		const [availableCacheSize, excludeFilePath] = await Promise.all([getAvailableCacheSize(cachePath), this.getExcludeFilePath()])
+		const availableCacheSize = await getAvailableCacheSize(cachePath)
 		const availableCacheSizeGib = Math.floor(availableCacheSize / (1024 / 1024 / 1024))
 		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
 
 		return [
-			`${process.platform === "win32" || process.platform === "linux" ? "mount" : "nfsmount"} Filen: ${normalizePathForCmd(
-				this.mountPoint
-			)}`,
+			`mount Filen: ${normalizePathForCmd(this.mountPoint)}`,
 			`--config "${configPath}"`,
 			"--vfs-cache-mode full",
 			...(this.readOnly ? ["--read-only"] : []),
@@ -550,8 +597,7 @@ export class NetworkDrive {
 			...(process.platform === "win32"
 				? // eslint-disable-next-line quotes
 				  ['-o FileSecurity="D:P(A;;FA;;;WD)"', "--network-mode"]
-				: []),
-			`--exclude-from "${excludeFilePath}"`
+				: [])
 		]
 	}
 
@@ -567,7 +613,8 @@ export class NetworkDrive {
 			this.getRCloneBinaryPath(),
 			this.getRCloneConfigPath(),
 			this.getCachePath(),
-			this.getMonitorScriptPath()
+			this.getMonitorScriptPath(),
+			this.installFuseTMacOS()
 		])
 
 		if (!(await fs.exists(binaryPath))) {
@@ -615,8 +662,8 @@ export class NetworkDrive {
 			this.monitorProcess = spawn(
 				process.platform === "win32" ? "cmd.exe" : "sh",
 				process.platform === "win32"
-					? ["/c", normalizePathForCmd(monitorScriptPath), process.pid.toString(), rcloneBinaryName]
-					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), rcloneBinaryName, `"${this.mountPoint}"`],
+					? ["/c", normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME]
+					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME, `"${this.mountPoint}"`],
 				{
 					detached: false,
 					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
@@ -789,7 +836,7 @@ export class NetworkDrive {
 			}
 		}
 
-		await killProcessByName(rcloneBinaryName).catch(() => {})
+		await killProcessByName(RCLONE_BINARY_NAME).catch(() => {})
 
 		if (process.platform === "linux" || process.platform === "darwin") {
 			await execCommand(
@@ -817,6 +864,10 @@ export class NetworkDrive {
 
 			if (process.platform === "linux" && !(await isFUSE3InstalledOnLinux())) {
 				throw new Error("FUSE3 not installed.")
+			}
+
+			if (process.platform === "darwin" && !(await isFUSETInstalledOnMacOS())) {
+				throw new Error("FUSE-T not installed.")
 			}
 
 			if (process.platform === "win32") {

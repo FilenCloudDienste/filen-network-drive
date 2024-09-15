@@ -49,6 +49,7 @@
 	"dependencies": {
 		"@filen/sdk": "^0.1.167",
 		"@filen/webdav": "^0.2.52",
+		"@vscode/sudo-prompt": "^9.3.1",
 		"axios": "^1.7.6",
 		"diskusage-ng": "^1.0.4",
 		"find-free-ports": "^3.1.1",
