@@ -70,6 +70,8 @@ async function downloadAndHashMultiple(urls) {
 					.join("")
 					.split("https://cdn.filen.io/@filen/desktop/bin/rclone/")
 					.join("")
+					.split("https://cdn.filen.io/@filen/desktop/bin/winfsp/")
+					.join("")
 			] = hash
 
 			// Remove the temporary file
@@ -85,6 +87,7 @@ async function downloadAndHashMultiple(urls) {
 
 const rcloneVersion = "1680"
 const fuseTVersion = "1041"
+const winfspVersion = "2124051"
 const urls = [
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_arm64_" + rcloneVersion,
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_x64_" + rcloneVersion,
@@ -95,7 +98,8 @@ const urls = [
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_ia32_" + rcloneVersion + ".exe",
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_ia32_" + rcloneVersion + ".exe",
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_win32_x64_" + rcloneVersion + ".exe",
-	"https://cdn.filen.io/@filen/desktop/bin/fuse-t/fuse_t_" + fuseTVersion + ".pkg"
+	"https://cdn.filen.io/@filen/desktop/bin/fuse-t/fuse_t_" + fuseTVersion + ".pkg",
+	"https://cdn.filen.io/@filen/desktop/bin/winfsp/winfsp_" + winfspVersion + ".msi"
 ]
 
 downloadAndHashMultiple(urls).then(hashes => {

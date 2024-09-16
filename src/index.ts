@@ -1,7 +1,7 @@
 import FilenSDK, { type FilenSDKConfig } from "@filen/sdk"
 import { Semaphore, type ISemaphore } from "./semaphore"
 import WebDAVServer from "@filen/webdav"
-import { spawn, type ChildProcess } from "child_process"
+import { spawn, type ChildProcess, exec } from "child_process"
 import {
 	platformConfigPath,
 	downloadBinaryAndVerifySHA512,
@@ -35,12 +35,15 @@ import os from "os"
 export const RCLONE_VERSION = "1680"
 export const FUSE_T_VERSION = "1041"
 export const FUSE_T_VERSION_NUMBER = 1000041
+export const WINFSP_VERSION = "2124051"
 export const RCLONE_BINARY_NAME = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
 	process.platform === "win32" ? ".exe" : ""
 }`
 export const FUSE_T_BINARY_NAME = `fuse_t_${FUSE_T_VERSION}.pkg`
+export const WINFSP_BINARY_NAME = `winfsp_${WINFSP_VERSION}.msi`
 export const RCLONE_URL = `https://cdn.filen.io/@filen/desktop/bin/rclone/${RCLONE_BINARY_NAME}`
 export const FUSE_T_URL = `https://cdn.filen.io/@filen/desktop/bin/fuse-t/${FUSE_T_BINARY_NAME}`
+export const WINFSP_URL = `https://cdn.filen.io/@filen/desktop/bin/winfsp/${WINFSP_BINARY_NAME}`
 export const BINARY_HASHES: Record<string, string> = {
 	filen_rclone_darwin_arm64_1680:
 		"9a92a9ce8addf55cd5a25c7a6ec2d1ac05d24cb1c68afa49f926db837a251944be03920e2c124d35da31e9abe93c690cc4019d716f732aa3396ab16ab9194cf4",
@@ -59,7 +62,9 @@ export const BINARY_HASHES: Record<string, string> = {
 	"filen_rclone_win32_x64_1680.exe":
 		"55ece9582bbbc4339494d3d0611b30187bd5e49f7b593c7baa46a156256055273c5c7751124b90c9e66b990effeaf9ac0a6155ecd777dd9791b848a4f7c3c287",
 	"fuse_t_1041.pkg":
-		"e34730bd1440b3ca36b61623aad4c61c9b0dd4e221f239df56a7c41f48d9cf8658bb264767f8536c145664b6e1489e21b75ba48c2a06781f11d1746f933f427c"
+		"e34730bd1440b3ca36b61623aad4c61c9b0dd4e221f239df56a7c41f48d9cf8658bb264767f8536c145664b6e1489e21b75ba48c2a06781f11d1746f933f427c",
+	"winfsp_2124051.msi":
+		"036f7d20c30429752bc654450a964cf05ff22f68d9259c6b7d887e47fb6ff10eee0c40acd55b280cf5d52af38f92ac02ef00d4979700074b640bcec0665e9cad"
 }
 
 export const excludePatterns = [
@@ -116,7 +121,7 @@ export class NetworkDrive {
 	private rclonePort: number = 1906
 	private monitorScriptPath: string | null = null
 	public logger: Logger
-	private readonly tryToInstallDependencies: boolean
+	private readonly tryToInstallDependenciesOnStart: boolean
 
 	/**
 	 * Creates an instance of NetworkDrive.
@@ -132,7 +137,7 @@ export class NetworkDrive {
 	 * 		logFilePath?: string
 	 * 		readOnly?: boolean
 	 * 		disableLogging?: boolean,
-	 * 		tryToInstallDependencies?: boolean
+	 * 		tryToInstallDependenciesOnStart?: boolean
 	 * 	}} param0
 	 * @param {FilenSDK} param0.sdk
 	 * @param {FilenSDKConfig} param0.sdkConfig
@@ -142,7 +147,7 @@ export class NetworkDrive {
 	 * @param {string} param0.logFilePath
 	 * @param {boolean} [param0.readOnly=false]
 	 * @param {boolean} [param0.disableLogging=false]
-	 * @param {boolean} [param0.tryToInstallDependencies=false]
+	 * @param {boolean} [param0.tryToInstallDependenciesOnStart=false]
 	 */
 	public constructor({
 		sdk,
@@ -153,7 +158,7 @@ export class NetworkDrive {
 		logFilePath,
 		readOnly = false,
 		disableLogging = false,
-		tryToInstallDependencies = false
+		tryToInstallDependenciesOnStart = false
 	}: {
 		sdk?: FilenSDK
 		sdkConfig?: FilenSDKConfig
@@ -163,7 +168,7 @@ export class NetworkDrive {
 		logFilePath?: string
 		readOnly?: boolean
 		disableLogging?: boolean
-		tryToInstallDependencies?: boolean
+		tryToInstallDependenciesOnStart?: boolean
 	}) {
 		if (!sdk && !sdkConfig) {
 			throw new Error("Either pass a configured SDK instance OR a SDKConfig object to the constructor.")
@@ -181,7 +186,7 @@ export class NetworkDrive {
 		this.cacheSize = cacheSize ? cacheSize : 10
 		this.logFilePath = logFilePath
 		this.readOnly = readOnly
-		this.tryToInstallDependencies = tryToInstallDependencies
+		this.tryToInstallDependenciesOnStart = tryToInstallDependenciesOnStart
 		this.logger = new Logger(disableLogging, false)
 
 		// Start downloading the binary in the background
@@ -278,6 +283,48 @@ export class NetworkDrive {
 	}
 
 	/**
+	 * Install WinFSP if it's not installed yet.
+	 *
+	 * @private
+	 * @async
+	 * @returns {Promise<void>}
+	 */
+	private async installWinFSPWindows(): Promise<void> {
+		if (!this.tryToInstallDependenciesOnStart || process.platform !== "win32" || (await isWinFSPInstalled())) {
+			return
+		}
+
+		if (!BINARY_HASHES[WINFSP_BINARY_NAME]) {
+			throw new Error("WinFSP binary hash not found.")
+		}
+
+		const tempPath = pathModule.join(os.tmpdir(), WINFSP_BINARY_NAME)
+
+		await downloadBinaryAndVerifySHA512(WINFSP_URL, tempPath, BINARY_HASHES[WINFSP_BINARY_NAME]!)
+
+		try {
+			await new Promise<void>((resolve, reject) => {
+				exec(`msiexec.exe /i "${tempPath}" /n`, err => {
+					if (err) {
+						reject(err)
+
+						return
+					}
+
+					resolve()
+				})
+			})
+		} finally {
+			await fs.rm(tempPath, {
+				force: true,
+				maxRetries: 60 * 10,
+				recursive: true,
+				retryDelay: 100
+			})
+		}
+	}
+
+	/**
 	 * Download FUSE-T if it's not installed yet.
 	 *
 	 * @private
@@ -285,7 +332,7 @@ export class NetworkDrive {
 	 * @returns {Promise<void>}
 	 */
 	private async installFuseTMacOS(): Promise<void> {
-		if (!this.tryToInstallDependencies || process.platform !== "darwin" || (await isFUSETInstalledOnMacOS())) {
+		if (!this.tryToInstallDependenciesOnStart || process.platform !== "darwin" || (await isFUSETInstalledOnMacOS())) {
 			return
 		}
 
@@ -684,9 +731,6 @@ export class NetworkDrive {
 			}
 		}
 
-		await this.installFuseTMacOS()
-		await this.addHostsEntry()
-
 		// The monitor process is a pretty dirty workaround to a specific problem.
 		// When spawning a child process in an Electron environment the child process does not get killed when the parent process (Electron) exits (nobody knows why).
 		// This means the spawned rclone process keeps chugging along while the actual desktop client is already closed -> bad.
@@ -901,6 +945,17 @@ export class NetworkDrive {
 		try {
 			await this.stop()
 
+			if (this.tryToInstallDependenciesOnStart) {
+				if (process.platform === "darwin") {
+					await this.installFuseTMacOS()
+					await this.addHostsEntry()
+				}
+
+				if (process.platform === "win32") {
+					await this.installWinFSPWindows()
+				}
+			}
+
 			if (process.platform === "win32" && !(await isWinFSPInstalled())) {
 				throw new Error("WinFSP not installed.")
 			}
@@ -909,7 +964,7 @@ export class NetworkDrive {
 				throw new Error("FUSE3 not installed.")
 			}
 
-			if (process.platform === "darwin" && !this.tryToInstallDependencies && !(await isFUSETInstalledOnMacOS())) {
+			if (process.platform === "darwin" && !(await isFUSETInstalledOnMacOS())) {
 				throw new Error("FUSE-T not installed.")
 			}
 
