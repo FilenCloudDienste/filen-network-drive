@@ -789,7 +789,10 @@ export class NetworkDrive {
 			})
 		})
 
-		const [rcPort] = await findFreePorts(1)
+		const [rcPort] = await findFreePorts(1, {
+			startPort: 49153,
+			endPort: 65534
+		})
 
 		if (!rcPort) {
 			throw new Error("Could not find a free port for RC.")
@@ -992,7 +995,10 @@ export class NetworkDrive {
 				}
 			}
 
-			const [webdavPort] = await findFreePorts(1)
+			const [webdavPort] = await findFreePorts(1, {
+				startPort: 49153,
+				endPort: 65534
+			})
 
 			if (!webdavPort) {
 				throw new Error("Could not find a free port.")
