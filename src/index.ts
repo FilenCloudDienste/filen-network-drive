@@ -790,8 +790,8 @@ export class NetworkDrive {
 		})
 
 		const [rcPort] = await findFreePorts(1, {
-			startPort: 49153,
-			endPort: 65534
+			startPort: 59153,
+			endPort: 64534
 		})
 
 		if (!rcPort) {
@@ -997,7 +997,7 @@ export class NetworkDrive {
 
 			const [webdavPort] = await findFreePorts(1, {
 				startPort: 49153,
-				endPort: 65534
+				endPort: 64534
 			})
 
 			if (!webdavPort) {
