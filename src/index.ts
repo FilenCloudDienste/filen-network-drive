@@ -978,11 +978,15 @@ export class NetworkDrive {
 					throw new Error(`Cannot mount network drive at ${this.mountPoint}: Drive letter exists.`)
 				}
 			} else {
-				if (process.platform === "linux" && !this.mountPoint.startsWith(`/home/${process.env.USER ?? "user"}`)) {
+				if ((process.platform === "linux" || process.platform === "darwin") && this.mountPoint.includes("$")) {
+					throw new Error("Only absolute paths for mount points are supported.")
+				}
+
+				if (process.platform === "linux" && !this.mountPoint.startsWith(os.homedir() + "/")) {
 					throw new Error("Cannot mount to a directory outside of your home directory.")
 				}
 
-				if (process.platform === "darwin" && !this.mountPoint.startsWith(`/Users/${process.env.USER ?? "user"}`)) {
+				if (process.platform === "darwin" && !this.mountPoint.startsWith(os.homedir() + "/")) {
 					throw new Error("Cannot mount to a directory outside of your user directory.")
 				}
 

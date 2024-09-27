@@ -192,12 +192,9 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 	}
 
 	try {
-		const dpkg = await execCommand(
-			// eslint-disable-next-line quotes
-			'dpkg -l | grep -E "^ii\\s+fuse3\\s|^ii\\s+libfuse3\\s"'
-		)
+		const fusermount3Check = await execCommand("which fusermount3")
 
-		if (dpkg.includes("fuse3")) {
+		if (fusermount3Check.trim().length > 0 && fusermount3Check.includes("/") && fusermount3Check.includes("fuse")) {
 			return true
 		}
 	} catch {
@@ -205,10 +202,19 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 	}
 
 	try {
-		// First check if fuse3 binary is installed using `which`
 		const fuse3Check = await execCommand("which fuse3")
 
-		if (fuse3Check.trim().length > 0 && fuse3Check.includes("/")) {
+		if (fuse3Check.trim().length > 0 && fuse3Check.includes("/") && fuse3Check.includes("fuse")) {
+			return true
+		}
+	} catch {
+		// Noop
+	}
+
+	try {
+		const dpkg = await execCommand("dpkg -s fuse3")
+
+		if (dpkg.includes("fuse3")) {
 			return true
 		}
 	} catch {
