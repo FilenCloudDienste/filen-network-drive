@@ -6,7 +6,6 @@ import {
 	platformConfigPath,
 	downloadBinaryAndVerifySHA512,
 	checkIfMountExists,
-	isProcessRunning,
 	killProcessByPid,
 	killProcessByName,
 	isFUSE3InstalledOnLinux,
@@ -493,6 +492,32 @@ export class NetworkDrive {
 	}
 
 	/**
+	 * List all active VFSes from rclone.
+	 *
+	 * @public
+	 * @async
+	 * @returns {Promise<string[]>}
+	 */
+	public async vfsList(): Promise<string[]> {
+		try {
+			const response = await axios.post(
+				`http://127.0.0.1:${this.rclonePort}/vfs/list`,
+				{},
+				{
+					responseType: "json",
+					timeout: 5000
+				}
+			)
+
+			const vfsList = response.data as { vfses: string[] }
+
+			return vfsList.vfses
+		} catch {
+			return []
+		}
+	}
+
+	/**
 	 * Get RClone stats.
 	 *
 	 * @public
@@ -578,19 +603,13 @@ export class NetworkDrive {
 	 */
 	private async isMountActuallyActive(): Promise<boolean> {
 		try {
-			const [mountExists, webdavOnline, rcloneRunning] = await Promise.all([
-				checkIfMountExists(this.mountPoint),
-				this.isWebDAVOnline(),
-				isProcessRunning(RCLONE_BINARY_NAME)
-			])
+			const [mountExists, vfsList] = await Promise.all([checkIfMountExists(this.mountPoint), this.vfsList()])
 
-			if (!mountExists || !webdavOnline || !rcloneRunning) {
+			if (!mountExists) {
 				return false
 			}
 
-			const stat = await fs.stat(this.mountPoint)
-
-			return process.platform === "linux" ? stat.ino === 0 || stat.birthtimeMs === 0 : stat.ino === 1
+			return vfsList.includes("Filen:")
 		} catch (e) {
 			this.logger.log("error", e, "isMountActuallyActive")
 			this.logger.log("error", e)
@@ -808,11 +827,10 @@ export class NetworkDrive {
 		await new Promise<void>((resolve, reject) => {
 			let checkInterval: NodeJS.Timeout | undefined = undefined
 			let checkTimeout: NodeJS.Timeout | undefined = undefined
-			let rcloneSpawned = false
 
 			checkInterval = setInterval(async () => {
 				try {
-					if ((await this.isMountActuallyActive()) && rcloneSpawned) {
+					if (await this.isMountActuallyActive()) {
 						clearInterval(checkInterval)
 						clearTimeout(checkTimeout)
 
@@ -828,10 +846,7 @@ export class NetworkDrive {
 				clearTimeout(checkTimeout)
 
 				try {
-					if ((await this.isMountActuallyActive()) && rcloneSpawned) {
-						clearInterval(checkInterval)
-						clearTimeout(checkTimeout)
-
+					if (await this.isMountActuallyActive()) {
 						resolve()
 
 						return
@@ -851,13 +866,7 @@ export class NetworkDrive {
 				detached: false
 			})
 
-			this.rcloneProcess.on("spawn", () => {
-				rcloneSpawned = true
-			})
-
 			this.rcloneProcess.on("error", err => {
-				rcloneSpawned = false
-
 				this.rcloneProcess = null
 
 				clearInterval(checkInterval)
@@ -867,8 +876,6 @@ export class NetworkDrive {
 			})
 
 			this.rcloneProcess.on("exit", () => {
-				rcloneSpawned = false
-
 				this.rcloneProcess = null
 
 				clearInterval(checkInterval)

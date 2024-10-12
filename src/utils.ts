@@ -396,7 +396,7 @@ export async function isUnixMountPointValid(mountPoint: string): Promise<boolean
 
 export async function checkIfMountExists(mountPoint: string): Promise<boolean> {
 	try {
-		await fs.access(os.platform() === "win32" ? `${mountPoint}\\\\` : mountPoint, fs.constants.R_OK | fs.constants.W_OK)
+		await fs.access(os.platform() === "win32" ? `${mountPoint}\\\\` : mountPoint, fs.constants.F_OK)
 
 		return true
 	} catch {
