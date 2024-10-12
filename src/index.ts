@@ -602,10 +602,18 @@ export class NetworkDrive {
 	 * @returns {Promise<boolean>}
 	 */
 	private async isMountActuallyActive(): Promise<boolean> {
-		try {
-			const [mountExists, vfsList] = await Promise.all([checkIfMountExists(this.mountPoint), this.vfsList()])
+		if (!this.rcloneProcess) {
+			return false
+		}
 
-			if (!mountExists) {
+		try {
+			const [mountExists, vfsList, webdavOnline] = await Promise.all([
+				checkIfMountExists(this.mountPoint),
+				this.vfsList(),
+				this.isWebDAVOnline()
+			])
+
+			if (!mountExists || !webdavOnline) {
 				return false
 			}
 
