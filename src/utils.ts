@@ -192,6 +192,7 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 	}
 
 	try {
+		// Check if fusermount3 is available
 		const fusermount3Check = await execCommand("which fusermount3")
 
 		if (fusermount3Check.trim().length > 0 && fusermount3Check.includes("/") && fusermount3Check.includes("fuse")) {
@@ -202,6 +203,7 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 	}
 
 	try {
+		// Check if fuse3 binary is available
 		const fuse3Check = await execCommand("which fuse3")
 
 		if (fuse3Check.trim().length > 0 && fuse3Check.includes("/") && fuse3Check.includes("fuse")) {
@@ -211,6 +213,7 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 		// Noop
 	}
 
+	// Check for Debian-based distros
 	try {
 		const dpkg = await execCommand("dpkg -s fuse3")
 
@@ -221,16 +224,18 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 		// Noop
 	}
 
+	// Check for Arch-based distros (uses pacman)
 	try {
-		const pkgConfigCheck = await execCommand("pkg-config --exists fuse3 || echo $?")
+		const pacmanCheck = await execCommand("pacman -Qs fuse3")
 
-		if (pkgConfigCheck.trim() === "0") {
+		if (pacmanCheck.trim().length > 0 && pacmanCheck.includes("fuse3")) {
 			return true
 		}
 	} catch {
 		// Noop
 	}
 
+	// Check for Red Hat-based distros (uses yum)
 	try {
 		const yumCheck = await execCommand("yum list installed fuse3 || echo $?")
 
@@ -241,10 +246,22 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 		// Noop
 	}
 
+	// Check for Alpine-based distros (uses apk)
 	try {
 		const apkCheck = await execCommand("apk info fuse3 || echo $?")
 
 		if (!apkCheck.toLowerCase().includes("fuse3 not found")) {
+			return true
+		}
+	} catch {
+		// Noop
+	}
+
+	// Check if fuse3 is available via pkg-config
+	try {
+		const pkgConfigCheck = await execCommand("pkg-config --exists fuse3 || echo $?")
+
+		if (pkgConfigCheck.trim() === "0") {
 			return true
 		}
 	} catch {
