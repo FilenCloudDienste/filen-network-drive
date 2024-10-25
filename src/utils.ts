@@ -271,15 +271,19 @@ export async function isFUSE3InstalledOnLinux(): Promise<boolean> {
 	return false
 }
 
-const versionRegex = /(\d+\.\d+\.\d+)/
+export const versionRegex = /(\d+\.\d+\.\d+)/
 
-export async function getFuseTVersion(): Promise<{
+export type FuseTVersion = {
 	version: string
-	versionNumber: number
-} | null> {
+	number: number
+}
+
+export async function getFuseTVersions(): Promise<FuseTVersion[]> {
 	if (process.platform !== "darwin") {
-		return null
+		return []
 	}
+
+	const versions: FuseTVersion[] = []
 
 	try {
 		const dir = await fs.readdir("/usr/local/lib")
@@ -295,19 +299,21 @@ export async function getFuseTVersion(): Promise<{
 					if (typeof major !== "undefined" && typeof minor !== "undefined" && typeof patch !== "undefined") {
 						const versionNumber = major * 1_000_000 + minor * 1_000 + patch
 
-						return {
+						versions.push({
 							version,
-							versionNumber
-						}
+							number: versionNumber
+						})
 					}
 				}
 			}
 		}
+
+		return versions
 	} catch {
 		// Noop
 	}
 
-	return null
+	return versions
 }
 
 export async function isFUSETInstalledOnMacOS(): Promise<boolean> {
@@ -317,17 +323,9 @@ export async function isFUSETInstalledOnMacOS(): Promise<boolean> {
 
 	try {
 		if ((await fs.exists("/usr/local/lib/libfuse-t.a")) && (await fs.exists("/usr/local/lib/libfuse-t.dylib"))) {
-			const version = await getFuseTVersion()
+			const versions = await getFuseTVersions()
 
-			if (version && version.version && version.versionNumber) {
-				if (version.versionNumber >= FUSE_T_VERSION_NUMBER) {
-					return true
-				}
-
-				return false
-			}
-
-			return true
+			return versions.some(version => version.number >= FUSE_T_VERSION_NUMBER)
 		}
 	} catch {
 		// Noop
