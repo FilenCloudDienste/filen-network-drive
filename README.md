@@ -22,8 +22,8 @@ npm install @filen/network-drive@latest
 2. Initialize the network drive
 
 ```typescript
-import FilenSDK from "@filen/sdk"
-import NetworkDrive from "@filen/network-drive"
+import { FilenSDK } from "@filen/sdk"
+import { NetworkDrive } from "@filen/network-drive"
 import path from "path"
 import os from "os"
 
