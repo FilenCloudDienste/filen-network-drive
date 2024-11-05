@@ -22,7 +22,7 @@ import {
 } from "./utils"
 import pathModule from "path"
 import fs from "fs-extra"
-import findFreePorts from "find-free-ports"
+import { findFreePort } from "./ports"
 import writeFileAtomic from "write-file-atomic"
 import axios from "axios"
 import { type RCCoreStats, type RCVFSStats, type GetStats } from "./types"
@@ -816,10 +816,7 @@ export class NetworkDrive {
 			})
 		})
 
-		const [rcPort] = await findFreePorts(1, {
-			startPort: 59153,
-			endPort: 64534
-		})
+		const rcPort = await findFreePort()
 
 		if (!rcPort) {
 			throw new Error("Could not find a free port for RC.")
@@ -1014,10 +1011,7 @@ export class NetworkDrive {
 				}
 			}
 
-			const [webdavPort] = await findFreePorts(1, {
-				startPort: 49153,
-				endPort: 64534
-			})
+			const webdavPort = await findFreePort()
 
 			if (!webdavPort) {
 				throw new Error("Could not find a free port.")
