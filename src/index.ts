@@ -32,9 +32,9 @@ import sudoPrompt from "@vscode/sudo-prompt"
 import os from "os"
 
 export const RCLONE_VERSION = "1680"
-export const FUSE_T_VERSION = "1042"
-export const FUSE_T_VERSION_NUMBER = 1000042
-export const WINFSP_VERSION = "2124051"
+export const FUSE_T_VERSION = "1044"
+export const FUSE_T_VERSION_NUMBER = 1000044
+export const WINFSP_VERSION = "2124255"
 export const RCLONE_BINARY_NAME = `filen_rclone_${process.platform}_${process.arch}_${RCLONE_VERSION}${
 	process.platform === "win32" ? ".exe" : ""
 }`
@@ -60,10 +60,10 @@ export const BINARY_HASHES: Record<string, string> = {
 		"2338009b0244a7f6573f4cc9cc01b49a3073cae566c2e26a82688fac6aaf36f67a27ee7524e8e3e65f28954c8ae927ff1710f77c07b2c356f0d6c49e72adabe6",
 	"filen_rclone_win32_x64_1680.exe":
 		"55ece9582bbbc4339494d3d0611b30187bd5e49f7b593c7baa46a156256055273c5c7751124b90c9e66b990effeaf9ac0a6155ecd777dd9791b848a4f7c3c287",
-	"fuse_t_1042.pkg":
-		"cb00c85b549c3db42288e2eb1972f622adb9f1ebd2db2ee4167b388879c0ea92557df12f9eb35ec0561beea44b25dc55f86597f520beb58edaef1919a6b44675",
-	"winfsp_2124051.msi":
-		"036f7d20c30429752bc654450a964cf05ff22f68d9259c6b7d887e47fb6ff10eee0c40acd55b280cf5d52af38f92ac02ef00d4979700074b640bcec0665e9cad"
+	"fuse_t_1044.pkg":
+		"8304c63661b5bd1c35cd2dc506429defab2608799a5da146443f18c8a6462f8f5e741f44334fe8abc6ff0ec92018b3ef8dbaab579fbd1e074b38db2fb4cb7b98",
+	"winfsp_2124255.msi":
+		"1ca6facd9d1702e52795bbb7933ee0070be800a2cff1261976714cf901edc4845858b98ae9be934da0125fc20b5c1a57a17d6fd50330e168688f32d8ad6304fb"
 }
 
 export const excludePatterns = [

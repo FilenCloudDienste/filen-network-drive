@@ -1,6 +1,6 @@
 {
 	"name": "@filen/network-drive",
-	"version": "0.9.25",
+	"version": "0.9.26",
 	"description": "Filen Network Drive",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -48,7 +48,7 @@
 	},
 	"dependencies": {
 		"@filen/sdk": "^0.1.175",
-		"@filen/webdav": "^0.2.56",
+		"@filen/webdav": "^0.2.57",
 		"@vscode/sudo-prompt": "^9.3.1",
 		"axios": "^1.7.6",
 		"diskusage-ng": "^1.0.4",

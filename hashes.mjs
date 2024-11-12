@@ -86,8 +86,8 @@ async function downloadAndHashMultiple(urls) {
 }
 
 const rcloneVersion = "1680"
-const fuseTVersion = "1042"
-const winfspVersion = "2124051"
+const fuseTVersion = "1044"
+const winfspVersion = "2124255"
 const urls = [
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_arm64_" + rcloneVersion,
 	"https://cdn.filen.io/@filen/desktop/bin/rclone/filen_rclone_darwin_x64_" + rcloneVersion,
