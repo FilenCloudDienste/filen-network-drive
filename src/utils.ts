@@ -428,7 +428,7 @@ export async function isUnixMountPointEmpty(mountPoint: string): Promise<boolean
 		await fs.access(mountPoint, fs.constants.R_OK | fs.constants.W_OK)
 
 		const dir = await fs.readdir(mountPoint, {
-			recursive: true,
+			recursive: false,
 			encoding: "utf-8"
 		})
 
