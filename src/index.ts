@@ -458,7 +458,7 @@ export class NetworkDrive {
 					await downloadBinaryAndVerifySHA512(RCLONE_URL, binaryPath, BINARY_HASHES[RCLONE_BINARY_NAME]!)
 
 					if (process.platform !== "win32") {
-						await execCommand(`chmod +x "${normalizePathForCmd(binaryPath)}"`)
+						await execCommand(`chmod +x ${normalizePathForCmd(binaryPath)}`)
 					}
 				}
 
@@ -637,7 +637,7 @@ export class NetworkDrive {
 	private async obscureRClonePassword(password: string): Promise<string> {
 		const binaryPath = await this.getRCloneBinaryPath()
 
-		return await execCommand(`"${normalizePathForCmd(binaryPath)}" obscure ${password}`)
+		return await execCommand(`${normalizePathForCmd(binaryPath)} obscure ${password}`)
 	}
 
 	/**
@@ -677,7 +677,7 @@ export class NetworkDrive {
 		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
 
 		return [
-			`mount Filen: "${process.platform === "win32" ? this.mountPoint : normalizePathForCmd(this.mountPoint)}"`,
+			`mount Filen: ${process.platform === "win32" ? `"${this.mountPoint}"` : normalizePathForCmd(this.mountPoint)}`,
 			`--config "${configPath}"`,
 			"--vfs-cache-mode full",
 			...(this.readOnly ? ["--read-only"] : []),
@@ -776,8 +776,8 @@ export class NetworkDrive {
 			this.monitorProcess = spawn(
 				process.platform === "win32" ? "cmd.exe" : "sh",
 				process.platform === "win32"
-					? ["/c", `"${normalizePathForCmd(monitorScriptPath)}"`, process.pid.toString(), RCLONE_BINARY_NAME]
-					: [`"${normalizePathForCmd(monitorScriptPath)}"`, process.pid.toString(), RCLONE_BINARY_NAME, `"${this.mountPoint}"`],
+					? ["/c", normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME]
+					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME, `"${this.mountPoint}"`],
 				{
 					detached: false,
 					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
