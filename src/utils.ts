@@ -492,7 +492,7 @@ export async function httpHealthCheck({
 
 export function normalizePathForCmd(path: string): string {
 	if (process.platform === "win32") {
-		return path
+		return pathModule.win32.normalize(path)
 	}
 
 	return pathModule.normalize(path).replace(/(\s+)/g, "\\$1")
