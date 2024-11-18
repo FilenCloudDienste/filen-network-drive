@@ -677,7 +677,7 @@ export class NetworkDrive {
 		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
 
 		return [
-			`mount Filen: ${process.platform === "win32" ? `"${this.mountPoint}"` : normalizePathForCmd(this.mountPoint)}`,
+			`mount Filen: "${process.platform === "win32" ? this.mountPoint : normalizePathForCmd(this.mountPoint, false)}"`,
 			`--config "${configPath}"`,
 			"--vfs-cache-mode full",
 			...(this.readOnly ? ["--read-only"] : []),
@@ -776,8 +776,13 @@ export class NetworkDrive {
 			this.monitorProcess = spawn(
 				process.platform === "win32" ? "cmd.exe" : "sh",
 				process.platform === "win32"
-					? ["/c", normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME]
-					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME, `"${this.mountPoint}"`],
+					? ["/c", `"${normalizePathForCmd(monitorScriptPath, false)}"`, process.pid.toString(), RCLONE_BINARY_NAME]
+					: [
+							`"${normalizePathForCmd(monitorScriptPath, false)}"`,
+							process.pid.toString(),
+							RCLONE_BINARY_NAME,
+							`"${this.mountPoint}"`
+					  ],
 				{
 					detached: false,
 					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
@@ -865,7 +870,7 @@ export class NetworkDrive {
 				}
 			}, 30000)
 
-			this.rcloneProcess = spawn(normalizePathForCmd(binaryPath), args, {
+			this.rcloneProcess = spawn(`"${normalizePathForCmd(binaryPath, false)}"`, args, {
 				stdio: "ignore",
 				shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
 				detached: false
