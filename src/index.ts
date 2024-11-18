@@ -777,12 +777,7 @@ export class NetworkDrive {
 				process.platform === "win32" ? "cmd.exe" : "sh",
 				process.platform === "win32"
 					? ["/c", `"${normalizePathForCmd(monitorScriptPath, false)}"`, process.pid.toString(), RCLONE_BINARY_NAME]
-					: [
-							`"${normalizePathForCmd(monitorScriptPath, false)}"`,
-							process.pid.toString(),
-							RCLONE_BINARY_NAME,
-							`"${this.mountPoint}"`
-					  ],
+					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME, `"${this.mountPoint}"`],
 				{
 					detached: false,
 					shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
@@ -805,13 +800,13 @@ export class NetworkDrive {
 
 				this.monitorProcess = null
 
-				reject(new Error("Could not spawn monitor process."))
+				reject(new Error("Could not spawn monitor process (exit)."))
 			})
 
 			this.monitorProcess.on("spawn", () => {
 				setTimeout(() => {
 					if (errored) {
-						reject(new Error("Could not spawn monitor process."))
+						reject(new Error("Could not spawn monitor process (spawn)."))
 
 						return
 					}
