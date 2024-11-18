@@ -677,12 +677,12 @@ export class NetworkDrive {
 		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
 
 		return [
-			`mount Filen: "${process.platform === "win32" ? this.mountPoint : normalizePathForCmd(this.mountPoint, false)}"`,
+			`mount Filen: "${this.mountPoint}"`,
 			`--config "${configPath}"`,
 			"--vfs-cache-mode full",
 			...(this.readOnly ? ["--read-only"] : []),
 			`--cache-dir "${cachePath}"`,
-			`--vfs-cache-max-size ${cacheSize}Gi`,
+			`--vfs-cache-max-size "${cacheSize}Gi"`,
 			"--vfs-cache-min-free-space 5Gi",
 			"--vfs-cache-max-age 720h",
 			"--vfs-cache-poll-interval 1m",
@@ -704,7 +704,7 @@ export class NetworkDrive {
 			"--transfers 16",
 			"--vfs-fast-fingerprint",
 			"--rc",
-			`--rc-addr 127.0.0.1:${this.rclonePort}`,
+			`--rc-addr "127.0.0.1:${this.rclonePort}"`,
 			...(this.logFilePath ? [`--log-file "${this.logFilePath}"`] : []),
 			"--devname Filen",
 			...(process.platform === "win32" ? ["--volname \\\\Filen\\Filen"] : ["--volname Filen"]),
@@ -865,7 +865,7 @@ export class NetworkDrive {
 				}
 			}, 30000)
 
-			this.rcloneProcess = spawn(`"${normalizePathForCmd(binaryPath, false)}"`, args, {
+			this.rcloneProcess = spawn(normalizePathForCmd(binaryPath, false), args, {
 				stdio: "ignore",
 				shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
 				detached: false
