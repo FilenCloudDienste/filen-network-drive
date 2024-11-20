@@ -333,6 +333,32 @@ export async function isFUSETInstalledOnMacOS(): Promise<boolean> {
 	return false
 }
 
+export async function isMacFUSEInstalled(): Promise<boolean> {
+	if (process.platform !== "darwin") {
+		return false
+	}
+
+	// Check for the existence of macFUSE filesystem bundle
+	try {
+		await fs.exists("/Library/Filesystems/macfuse.fs")
+
+		return true
+	} catch {
+		// Noop
+	}
+
+	// Check for the existence of macFUSE libraries
+	try {
+		await fs.exists("/usr/local/lib/libfuse.dylib")
+
+		return true
+	} catch {
+		// Noop
+	}
+
+	return false
+}
+
 export async function getExistingDrives(): Promise<string[]> {
 	const drives: string[] = []
 

@@ -18,7 +18,8 @@ import {
 	isUnixMountPointEmpty,
 	generateRandomString,
 	httpHealthCheck,
-	normalizePathForCmd
+	normalizePathForCmd,
+	isMacFUSEInstalled
 } from "./utils"
 import pathModule from "path"
 import fs from "fs-extra"
@@ -672,7 +673,7 @@ export class NetworkDrive {
 	 * @returns {Promise<string[]>}
 	 */
 	private async rcloneArgs({ cachePath, configPath }: { cachePath: string; configPath: string }): Promise<string[]> {
-		const availableCacheSize = await getAvailableCacheSize(cachePath)
+		const [availableCacheSize, macFUSEInstalled] = await Promise.all([getAvailableCacheSize(cachePath), isMacFUSEInstalled()])
 		const availableCacheSizeGib = Math.floor(availableCacheSize / (1024 / 1024 / 1024))
 		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
 
@@ -712,7 +713,10 @@ export class NetworkDrive {
 				? // eslint-disable-next-line quotes
 				  ['-o FileSecurity="D:P(A;;FA;;;WD)"', "--network-mode"]
 				: []),
-			...(process.platform === "darwin" ? ["-o nomtime", "-o backend=nfs", "-o location=Filen", "-o nonamedattr"] : [])
+			// Only for FUSE-T
+			...(process.platform === "darwin" && !macFUSEInstalled
+				? ["-o nomtime", "-o backend=nfs", "-o location=Filen", "-o nonamedattr"]
+				: [])
 		]
 	}
 
@@ -828,6 +832,9 @@ export class NetworkDrive {
 			cachePath,
 			configPath
 		})
+		const binaryPathNormalized = normalizePathForCmd(binaryPath, false)
+
+		this.logger.log("info", `Rclone args: '${binaryPathNormalized} ${args.join(" ")}'`)
 
 		await new Promise<void>((resolve, reject) => {
 			let checkInterval: NodeJS.Timeout | undefined = undefined
@@ -865,7 +872,7 @@ export class NetworkDrive {
 				}
 			}, 30000)
 
-			this.rcloneProcess = spawn(normalizePathForCmd(binaryPath, false), args, {
+			this.rcloneProcess = spawn(binaryPathNormalized, args, {
 				stdio: "ignore",
 				shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
 				detached: false
@@ -961,7 +968,7 @@ export class NetworkDrive {
 			await this.stop()
 
 			if (this.tryToInstallDependenciesOnStart) {
-				if (process.platform === "darwin") {
+				if (process.platform === "darwin" && !(await isMacFUSEInstalled())) {
 					await this.installFuseTMacOS()
 					await this.addHostsEntry()
 				}
