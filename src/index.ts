@@ -780,9 +780,9 @@ export class NetworkDrive {
 			let errored = false
 
 			this.monitorProcess = spawn(
-				process.platform === "win32" ? "cmd.exe" : "sh",
+				process.platform === "win32" ? normalizePathForCmd(monitorScriptPath) : "sh",
 				process.platform === "win32"
-					? ["/c", `"${normalizePathForCmd(monitorScriptPath, false)}"`, process.pid.toString(), RCLONE_BINARY_NAME]
+					? [process.pid.toString(), RCLONE_BINARY_NAME]
 					: [normalizePathForCmd(monitorScriptPath), process.pid.toString(), RCLONE_BINARY_NAME, `"${this.mountPoint}"`],
 				{
 					detached: false,
@@ -834,7 +834,7 @@ export class NetworkDrive {
 			cachePath,
 			configPath
 		})
-		const binaryPathNormalized = normalizePathForCmd(binaryPath, false)
+		const binaryPathNormalized = normalizePathForCmd(binaryPath)
 
 		this.logger.log("info", `Rclone args: '${binaryPathNormalized} ${args.join(" ")}'`)
 
