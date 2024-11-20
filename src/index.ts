@@ -689,8 +689,8 @@ export class NetworkDrive {
 			"--vfs-cache-poll-interval 1m",
 			"--dir-cache-time 3s",
 			"--cache-info-age 5s",
-			"--noappledouble",
-			"--noapplexattr",
+			//"--noappledouble",
+			//"--noapplexattr",
 			"--no-gzip-encoding",
 			"--use-mmap",
 			"--disable-http2",
@@ -714,8 +714,10 @@ export class NetworkDrive {
 				  ['-o FileSecurity="D:P(A;;FA;;;WD)"', "--network-mode"]
 				: []),
 			// Only for FUSE-T
-			...(process.platform === "darwin" && !macFUSEInstalled
-				? ["-o nomtime", "-o backend=nfs", "-o location=Filen", "-o nonamedattr"]
+			...(process.platform === "darwin"
+				? macFUSEInstalled
+					? ["-o jail_symlinks"]
+					: ["-o nomtime", "-o backend=nfs", "-o location=Filen", "-o nonamedattr"]
 				: [])
 		]
 	}
