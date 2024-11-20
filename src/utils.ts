@@ -340,18 +340,22 @@ export async function isMacFUSEInstalled(): Promise<boolean> {
 
 	// Check for the existence of macFUSE filesystem bundle
 	try {
-		await fs.exists("/Library/Filesystems/macfuse.fs")
+		const macFUSEFS = await fs.exists("/Library/Filesystems/macfuse.fs")
 
-		return true
+		if (macFUSEFS) {
+			return true
+		}
 	} catch {
 		// Noop
 	}
 
 	// Check for the existence of macFUSE libraries
 	try {
-		await fs.exists("/usr/local/lib/libfuse.dylib")
+		const libfuse = await fs.exists("/usr/local/lib/libfuse.dylib")
 
-		return true
+		if (libfuse) {
+			return true
+		}
 	} catch {
 		// Noop
 	}
