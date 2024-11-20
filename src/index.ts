@@ -712,7 +712,7 @@ export class NetworkDrive {
 				? // eslint-disable-next-line quotes
 				  ['-o FileSecurity="D:P(A;;FA;;;WD)"', "--network-mode"]
 				: []),
-			...(process.platform === "darwin" ? ["-o nomtime", "-o backend=nfs", "-o location=Filen"] : [])
+			...(process.platform === "darwin" ? ["-o nomtime", "-o backend=nfs", "-o location=Filen", "-o nonamedattr"] : [])
 		]
 	}
 

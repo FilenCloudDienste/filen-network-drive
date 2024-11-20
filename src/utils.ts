@@ -8,7 +8,6 @@ import { exec } from "child_process"
 import sudoPrompt from "sudo-prompt"
 import net from "net"
 import https from "https"
-import diskusage from "diskusage-ng"
 import { FUSE_T_VERSION_NUMBER } from "."
 
 export const httpsAgent = new https.Agent({
@@ -501,15 +500,19 @@ export function normalizePathForCmd(path: string, escapeUsingTicks: boolean = tr
 export async function getAvailableCacheSize(cachePath: string): Promise<number> {
 	await fs.ensureDir(cachePath)
 
-	return await new Promise<number>((resolve, reject) => {
-		diskusage(cachePath, (err, usage) => {
+	return await new Promise<number>(resolve => {
+		fs.statfs(cachePath, (err, stats) => {
 			if (err) {
-				reject(err)
+				resolve(12884901888)
 
 				return
 			}
 
-			resolve(usage.available)
+			const blockSize = stats.bsize
+			const availableBlocks = stats.bavail
+			const freeSpace = availableBlocks * blockSize
+
+			resolve(freeSpace)
 		})
 	})
 }
