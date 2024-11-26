@@ -115,7 +115,6 @@ export class NetworkDrive {
 	private readonly getRCloneBinaryMutex: ISemaphore = new Semaphore(1)
 	private cachePath: string | undefined
 	private readonly mountPoint: string
-	private readonly cacheSize: number
 	private readonly logFilePath: string | undefined
 	private readonly readOnly: boolean
 	private rclonePort: number = 1906
@@ -131,9 +130,7 @@ export class NetworkDrive {
 	 * @param {{
 	 * 		sdk?: FilenSDK
 	 * 		sdkConfig?: FilenSDKConfig
-	 * 		cachePath?: string
 	 * 		mountPoint: string
-	 * 		cacheSize?: number
 	 * 		logFilePath?: string
 	 * 		readOnly?: boolean
 	 * 		disableLogging?: boolean,
@@ -141,9 +138,7 @@ export class NetworkDrive {
 	 * 	}} param0
 	 * @param {FilenSDK} param0.sdk
 	 * @param {FilenSDKConfig} param0.sdkConfig
-	 * @param {string} param0.cachePath
 	 * @param {string} param0.mountPoint
-	 * @param {number} param0.cacheSize
 	 * @param {string} param0.logFilePath
 	 * @param {boolean} [param0.readOnly=false]
 	 * @param {boolean} [param0.disableLogging=false]
@@ -152,9 +147,7 @@ export class NetworkDrive {
 	public constructor({
 		sdk,
 		sdkConfig,
-		cachePath,
 		mountPoint,
-		cacheSize,
 		logFilePath,
 		readOnly = false,
 		disableLogging = false,
@@ -162,9 +155,7 @@ export class NetworkDrive {
 	}: {
 		sdk?: FilenSDK
 		sdkConfig?: FilenSDKConfig
-		cachePath?: string
 		mountPoint: string
-		cacheSize?: number
 		logFilePath?: string
 		readOnly?: boolean
 		disableLogging?: boolean
@@ -181,9 +172,7 @@ export class NetworkDrive {
 					connectToSocket: true,
 					metadataCache: true
 			  })
-		this.cachePath = cachePath
 		this.mountPoint = mountPoint
-		this.cacheSize = cacheSize ? cacheSize : 10
 		this.logFilePath = logFilePath
 		this.readOnly = readOnly
 		this.tryToInstallDependenciesOnStart = tryToInstallDependenciesOnStart
@@ -674,8 +663,9 @@ export class NetworkDrive {
 	 */
 	private async rcloneArgs({ cachePath, configPath }: { cachePath: string; configPath: string }): Promise<string[]> {
 		const [availableCacheSize, macFUSEInstalled] = await Promise.all([getAvailableCacheSize(cachePath), isMacFUSEInstalled()])
-		const availableCacheSizeGib = Math.floor(availableCacheSize / (1024 / 1024 / 1024))
-		const cacheSize = this.cacheSize >= availableCacheSizeGib ? availableCacheSizeGib : this.cacheSize
+		const osDiskBufferGib = 5
+		const availableCacheSizeGib = Math.floor(availableCacheSize / (1024 * 1024 * 1024)) - osDiskBufferGib
+		const cacheSize = availableCacheSizeGib > 0 ? availableCacheSizeGib : osDiskBufferGib
 
 		return [
 			`mount Filen: "${this.mountPoint}"`,
