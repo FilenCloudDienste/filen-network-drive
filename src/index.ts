@@ -692,6 +692,7 @@ export class NetworkDrive {
 			//"--noappledouble",
 			//"--noapplexattr",
 			"--no-gzip-encoding",
+			"--allow-other",
 			"--use-mmap",
 			"--disable-http2",
 			"--file-perms 0666",
@@ -717,7 +718,7 @@ export class NetworkDrive {
 			...(process.platform === "darwin"
 				? macFUSEInstalled
 					? ["-o jail_symlinks"]
-					: ["-o nomtime", "-o backend=nfs", "-o location=Filen", "-o nonamedattr"]
+					: ["-o nomtime", "-o backend=smb", "-o location=Filen", "-o nonamedattr"]
 				: [])
 		]
 	}
