@@ -693,6 +693,7 @@ export class NetworkDrive {
 			//"--noapplexattr",
 			"--no-gzip-encoding",
 			"--use-mmap",
+			"--allow-other",
 			"--disable-http2",
 			"--file-perms 0666",
 			"--dir-perms 0777",
