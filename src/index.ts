@@ -151,7 +151,8 @@ export class NetworkDrive {
 		logFilePath,
 		readOnly = false,
 		disableLogging = false,
-		tryToInstallDependenciesOnStart = false
+		tryToInstallDependenciesOnStart = false,
+		cachePath
 	}: {
 		sdk?: FilenSDK
 		sdkConfig?: FilenSDKConfig
@@ -160,6 +161,7 @@ export class NetworkDrive {
 		readOnly?: boolean
 		disableLogging?: boolean
 		tryToInstallDependenciesOnStart?: boolean
+		cachePath?: string
 	}) {
 		if (!sdk && !sdkConfig) {
 			throw new Error("Either pass a configured SDK instance OR a SDKConfig object to the constructor.")
@@ -175,6 +177,7 @@ export class NetworkDrive {
 		this.mountPoint = mountPoint
 		this.logFilePath = logFilePath
 		this.readOnly = readOnly
+		this.cachePath = cachePath
 		this.tryToInstallDependenciesOnStart = tryToInstallDependenciesOnStart
 		this.logger = new Logger(disableLogging, false)
 
