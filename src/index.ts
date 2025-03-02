@@ -296,7 +296,7 @@ export class NetworkDrive {
 
 		try {
 			await new Promise<void>((resolve, reject) => {
-				exec(`powershell -Command "Start-Process msiexec -ArgumentList '/i ${tempPath} /qn' -Verb runAs -Wait"`, err => {
+				exec(`"C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" -Command "Start-Process msiexec -ArgumentList '/i ${tempPath} /qn' -Verb runAs -Wait"`, err => {
 					if (err) {
 						reject(err)
 
