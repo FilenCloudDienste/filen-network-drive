@@ -296,11 +296,17 @@ export class NetworkDrive {
 
 		try {
 			await new Promise<void>((resolve, reject) => {
-				exec(`"C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" -Command "Start-Process msiexec -ArgumentList '/i ${tempPath} /qn' -Verb runAs -Wait"`, err => {
+				exec(`"%SYSTEMROOT%/System32/WindowsPowerShell/v1.0/powershell.exe" -Command "Start-Process msiexec -ArgumentList '/i ${tempPath} /qn' -Verb runAs -Wait"`, err => {
 					if (err) {
-						reject(err)
-
-						return
+						this.logger.log("warn", "powershell not at '%SYSTEMROOT%/System32/WindowsPowerShell/v1.0/powershell.exe', falling back to CommandPrompt (cmd)")
+						// Fallback, using cmd prompt
+						exec(`cmd /B runas /user:Administrator "msiexec /i ${tempPath} /qn"`, err => {
+							if (err) {
+								this.logger.log("error", "Fallback failed, WinFSP failed to check")
+								reject(err)
+								return
+							}
+						})
 					}
 
 					resolve()
