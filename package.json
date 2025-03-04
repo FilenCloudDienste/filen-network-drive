@@ -56,7 +56,7 @@
 		"pino": "^9.4.0",
 		"rotating-file-stream": "^3.2.3",
 		"sudo-prompt": "^9.2.1",
-		"uuid": "^10.0.0",
+		"uuid": "^11.1.0",
 		"write-file-atomic": "^5.0.1"
 	}
 }
