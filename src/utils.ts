@@ -5,7 +5,7 @@ import axios from "axios"
 import { v4 as uuidv4 } from "uuid"
 import crypto from "crypto"
 import { exec } from "child_process"
-import sudoPrompt from "sudo-prompt"
+import sudoPrompt from "@vscode/sudo-prompt"
 import net from "net"
 import https from "https"
 import { FUSE_T_VERSION_NUMBER } from "."
@@ -115,31 +115,37 @@ export async function execCommand(command: string, trimStdOut: boolean = true): 
 
 export async function execCommandSudo(command: string, trimStdOut: boolean = true): Promise<string> {
 	return new Promise((resolve, reject) => {
-		sudoPrompt.exec(command, { name: "Filen" }, (err, stdout, stderr) => {
-			if (err || stderr) {
-				if (!stderr) {
+		sudoPrompt.exec(
+			command,
+			{
+				name: "Filen"
+			},
+			(err, stdout, stderr) => {
+				if (err || stderr) {
+					if (!stderr) {
+						stdout = ""
+					}
+
+					if (stderr instanceof Buffer) {
+						stderr = stderr.toString("utf-8")
+					}
+
+					reject(err ? err : new Error(stderr))
+
+					return
+				}
+
+				if (!stdout) {
 					stdout = ""
 				}
 
-				if (stderr instanceof Buffer) {
-					stderr = stderr.toString("utf-8")
+				if (stdout instanceof Buffer) {
+					stdout = stdout.toString("utf-8")
 				}
 
-				reject(err ? err : new Error(stderr))
-
-				return
+				resolve(trimStdOut ? stdout.trim() : stdout)
 			}
-
-			if (!stdout) {
-				stdout = ""
-			}
-
-			if (stdout instanceof Buffer) {
-				stdout = stdout.toString("utf-8")
-			}
-
-			resolve(trimStdOut ? stdout.trim() : stdout)
-		})
+		)
 	})
 }
 
